@@ -32,7 +32,7 @@ class Argument:
 
 @dataclass
 class Issue:
-    type: str  # missing_link, unsupported_premise, contradiction, circular
+    type: str  # missing_link, unsupported_premise, contradiction, circular, false_dichotomy
     description: str
     involved_claims: List[str]
 
@@ -235,6 +235,14 @@ class ASPDebugger:
                                 description=f"Circular reasoning detected involving {claim_id}",
                                 involved_claims=[claim_id]
                             ))
+                    
+                    elif atom.name == "false_dichotomy":
+                        claim_id = str(atom.arguments[0]).strip('"')
+                        asp_issues.append(Issue(
+                            type="false_dichotomy",
+                            description=f"False dichotomy: presents only two options when more may exist",
+                            involved_claims=[claim_id]
+                        ))
                 
                 # Only take first model
                 break
@@ -275,6 +283,12 @@ class ASPDebugger:
         for claim_id, content in claim_contents.items():
             if self._is_empirical_claim(content):
                 program += f'empirical_claim("{claim_id}").\n'
+        
+        # Add facts about dichotomous claims
+        program += "\n% Mark dichotomous claims\n"
+        for claim_id, content in claim_contents.items():
+            if self._is_dichotomous_claim(content):
+                program += f'dichotomous_claim("{claim_id}").\n'
         
         program += """
         % Track which claims have incoming inferences
@@ -334,9 +348,28 @@ class ASPDebugger:
             inference(Y, X),
             supports(X, Y).
         
+        % Detect false dichotomies
+        % A false dichotomy is when:
+        % 1. A claim presents exactly two options (dichotomous_claim)
+        % 2. It's used as a premise for a conclusion
+        % 3. No justification is given for why only these two options exist
+        false_dichotomy(C) :- 
+            dichotomous_claim(C),
+            claim(C, "premise"),
+            inference(C, _),
+            not justified_dichotomy(C).
+        
+        % A dichotomy is justified if there's evidence that these are the only options
+        justified_dichotomy(C) :- 
+            dichotomous_claim(C),
+            inference(Evidence, C),
+            claim(Evidence, _),
+            not dichotomous_claim(Evidence).
+        
         #show missing_link/2.
         #show unsupported_premise/1.
         #show circular_reasoning/1.
+        #show false_dichotomy/1.
         """
         
         return program
@@ -352,6 +385,22 @@ class ASPDebugger:
         ]
         content_lower = content.lower()
         return any(indicator in content_lower for indicator in empirical_indicators)
+    
+    def _is_dichotomous_claim(self, content: str) -> bool:
+        """Check if a claim presents exactly two options"""
+        import re
+        
+        dichotomy_patterns = [
+            r"either\s+.+?\s+or\s+",
+            r"we must choose between\s+.+?\s+and\s+",
+            r"if not\s+.+?,\s*then\s+",
+            r"only two options",
+            r"it's\s+.+?\s+or\s+",
+            r"you're either\s+.+?\s+or\s+"
+        ]
+        
+        content_lower = content.lower()
+        return any(re.search(pattern, content_lower) for pattern in dichotomy_patterns)
 
 class RepairGenerator:
     """Generates repairs for identified issues"""
@@ -406,6 +455,17 @@ class RepairGenerator:
                     description=f"Add independent evidence to break circular dependency",
                     content=self._generate_independent_support(argument, issue.involved_claims[0]),
                     confidence=0.6
+                ))
+            
+            elif issue.type == "false_dichotomy":
+                # For false dichotomy, suggest alternative options
+                claim_content = self._get_claim_content(argument, issue.involved_claims[0])
+                alternatives = self._generate_alternatives(claim_content)
+                repairs.append(Repair(
+                    type="add_premise",
+                    description=f"Acknowledge alternative options beyond the presented dichotomy",
+                    content=alternatives,
+                    confidence=0.85
                 ))
         
         return repairs
@@ -482,6 +542,26 @@ class RepairGenerator:
         
         Provide external evidence or reasoning that doesn't rely on the claim itself.
         This should come from outside the circular logic.
+        """
+        
+        response = self.client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
+        
+        return response.text.strip()
+    
+    def _generate_alternatives(self, dichotomous_claim: str) -> str:
+        """Generate alternative options for a false dichotomy"""
+        
+        prompt = f"""
+        This argument contains a false dichotomy:
+        
+        Claim: {dichotomous_claim}
+        
+        Suggest 2-3 alternative options that are being ignored.
+        Be specific and relevant to the context.
+        Format as a single statement acknowledging other possibilities.
         """
         
         response = self.client.models.generate_content(
