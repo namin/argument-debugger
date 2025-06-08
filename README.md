@@ -41,3 +41,4 @@ python ad.py
 - [ASP encodings for serveral semantics and reasoning tasks in Dung AFs](https://www.dbai.tuwien.ac.at/research/argumentation/aspartix/dung.html)
 - [International Competition on Computational Models of Argumentation (ICCMA)_](https://www.argumentationcompetition.org/)
 - [ArgDown](https://argdown.org/)
+- [Argunauts: Open LLMs that Master Argument Analysis with Argdown](https://huggingface.co/blog/ggbetz/argunauts-intro)
