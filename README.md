@@ -32,13 +32,15 @@ See [our tutorial](TUTORIAL.md) on encoding arguments in Answer Set Programming 
 - ASPDebugger: Uses Clingo to analyze logical structure
   - Detects missing links between claims
   - Finds unsupported premises
-  - Identifies circular reasoning
+  - Identifies circular reasoning (including transitive)
+  - Detects false dichotomies
   - Checks goal reachability
 
 - RepairGenerator: Uses Gemini to suggest concrete fixes
   - Generates bridging premises for missing links
   - Suggests supporting evidence for unsupported claims
   - Recommends removing circular dependencies
+  - Proposes alternative options for false dichotomies
 
 - ArgumentDebugger: Orchestrates the full pipeline
 
