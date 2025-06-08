@@ -289,6 +289,8 @@ class ASPDebugger:
         for claim_id, content in claim_contents.items():
             if self._is_dichotomous_claim(content):
                 program += f'dichotomous_claim("{claim_id}").\n'
+                if self.debug:
+                    print(f"Marked {claim_id} as dichotomous: {content}")
         
         program += """
         % Track which claims have incoming inferences
@@ -349,22 +351,15 @@ class ASPDebugger:
             supports(X, Y).
         
         % Detect false dichotomies
-        % A false dichotomy is when:
-        % 1. A claim presents exactly two options (dichotomous_claim)
-        % 2. It's used as a premise for a conclusion
-        % 3. No justification is given for why only these two options exist
+        % A false dichotomy is when a claim presents exactly two options
+        % without proving these are the ONLY options
         false_dichotomy(C) :- 
             dichotomous_claim(C),
-            claim(C, "premise"),
-            inference(C, _),
-            not justified_dichotomy(C).
+            claim(C, _).
         
-        % A dichotomy is justified if there's evidence that these are the only options
-        justified_dichotomy(C) :- 
-            dichotomous_claim(C),
-            inference(Evidence, C),
-            claim(Evidence, _),
-            not dichotomous_claim(Evidence).
+        % Note: We're marking ALL dichotomous claims as false dichotomies
+        % because proving that only two options exist is extremely rare
+        % in natural language arguments
         
         #show missing_link/2.
         #show unsupported_premise/1.
@@ -391,16 +386,21 @@ class ASPDebugger:
         import re
         
         dichotomy_patterns = [
-            r"either\s+.+?\s+or\s+",
-            r"we must choose between\s+.+?\s+and\s+",
-            r"if not\s+.+?,\s*then\s+",
+            r"either\s+.+\s+or\s+",  # Changed from .+? to .+ for greedy matching
+            r"we must choose between\s+.+\s+and\s+",
+            r"if not\s+.+,\s*then\s+",
             r"only two options",
-            r"it's\s+.+?\s+or\s+",
-            r"you're either\s+.+?\s+or\s+"
+            r"it's\s+.+\s+or\s+",
+            r"you're either\s+.+\s+or\s+"
         ]
         
         content_lower = content.lower()
-        return any(re.search(pattern, content_lower) for pattern in dichotomy_patterns)
+        result = any(re.search(pattern, content_lower) for pattern in dichotomy_patterns)
+        
+        if self.debug and result:
+            print(f"Detected dichotomous claim: {content}")
+        
+        return result
 
 class RepairGenerator:
     """Generates repairs for identified issues"""
@@ -616,6 +616,11 @@ class ArgumentDebugger:
 def main():
     # Example arguments to debug
     examples = [
+        # False dichotomy
+        """
+        Either God does not exist or God is not benevolent because the bible tells many stories of God being cruel, instructing his people to be cruel, and even condoning cruelty.
+        """,
+        
         # Missing link
         """
         Crime rates have increased in our city.
