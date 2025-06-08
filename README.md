@@ -16,6 +16,10 @@ export GEMINI_API_KEY=...
 python ad.py
 ```
 
+See [sample output](output.txt).
+
+See [our tutorial](TUTORIAL.md) on encoding arguments in Answer Set Programming (ASP).
+
 ## Key Components of Current Prototype
 
 - ArgumentParser: Uses LLM to extract formal structure from natural language
