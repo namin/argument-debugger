@@ -23,7 +23,7 @@ You can run with a custom file of examples, each separated by two newlines.
 python ad.py examples.txt
 ```
 
-See [sample output](output.txt).
+See [sample output](output.md).
 
 See [our tutorial](TUTORIAL.md) on encoding arguments in Answer Set Programming (ASP).
 
