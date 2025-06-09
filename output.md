@@ -1,6 +1,6 @@
-============================================================
-EXAMPLE 1
-============================================================
+# Output
+
+## EXAMPLE 1
 Argument: Crime rates have increased in our city.
         Therefore, we need to hire more police officers.
 Parsing argument...
@@ -25,9 +25,7 @@ Found 2 issues. Generating repairs...
 
 "According to the city's publicly available police department data, reported incidents of violent crime (including assault, robbery, and homicide) increased by 15% in the first quarter of 2024 compared to the first quarter of 2023. Property crime, including burglaries and vehicle theft, also saw an increase of 8% during the same period.""
 
-============================================================
-EXAMPLE 2
-============================================================
+## EXAMPLE 2
 Argument: Video games cause violence.
         Children play many video games.
         Therefore, we should ban video games for children.
@@ -72,9 +70,7 @@ A longitudinal study following 500 children (ages 6-12 at the start) over a peri
 
 In summary, this hypothetical study provides *supporting* evidence for the claim, but it's crucial to interpret it cautiously and acknowledge the limitations. The relationship between video games and violence is complex and multifaceted. A single study, regardless of its findings, does not provide a definitive answer."
 
-============================================================
-EXAMPLE 3
-============================================================
+## EXAMPLE 3
 Argument: The Bible is true because it's the word of God.
         We know it's the word of God because the Bible says so.
         Therefore, we should follow the Bible.

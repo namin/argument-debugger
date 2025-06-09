@@ -194,9 +194,10 @@ class ASPDebugger:
         asp_program = self._build_asp_program(argument)
         
         if self.debug:
-            print("=== ASP Program ===")
+            print("### ASP Program")
+            print("```prolog")
             print(asp_program)
-            print("==================\n")
+            print("```")
         
         # Run ASP solver
         control = clingo.Control(["--warn=none"])  # Suppress info messages
@@ -638,11 +639,10 @@ def main():
     
     # Initialize debugger (set debug=True to see ASP programs)
     debugger = ArgumentDebugger(debug=False, show_structure=True)
-    
+
+    print("# Output")
     for i, arg_text in enumerate(examples):
-        print(f"\n{'='*60}")
-        print(f"EXAMPLE {i+1}")
-        print(f"{'='*60}")
+        print(f"## EXAMPLE {i+1}")
         print("Argument:", arg_text.strip())
         
         try:
