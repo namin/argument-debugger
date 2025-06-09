@@ -612,69 +612,29 @@ class ArgumentDebugger:
             "repairs": repairs
         }
 
-# Example usage
 def main():
-    # Example arguments to debug
-    examples = [
-        # False dichotomy
-        """
-        Either God does not exist or God is not benevolent because the bible tells many stories of God being cruel, instructing his people to be cruel, and even condoning cruelty.
-        """,
-        
-        # Missing link
-        """
-        Crime rates have increased in our city.
-        Therefore, we need to hire more police officers.
-        """,
-        
-        # Unsupported premise
-        """
-        Video games cause violence.
-        Children play many video games.
-        Therefore, we should ban video games for children.
-        """,
-        
-        # Circular reasoning
-        """
-        The Bible is true because it's the word of God.
-        We know it's the word of God because the Bible says so.
-        Therefore, we should follow the Bible.
-        """,
+    import sys
+    
+    # Check if a file was provided as argument
+    if len(sys.argv) > 1:
+        # Read arguments from file
+        filename = sys.argv[1]
+    else:
+        filename = 'examples.txt'
+    try:
+        with open(filename, 'r') as f:
+            content = f.read()
 
-        # Missing causal link
-        """
-        Global temperatures are rising.
-        Therefore, we should invest in renewable energy.
-        """,
-        
-        # Unsupported generalization
-        """
-        All politicians are corrupt.
-        Senator Smith is a politician.
-        Therefore, Senator Smith is corrupt.
-        """,
-        
-        # False dichotomy
-        """
-        Either we cut social programs or the economy will collapse.
-        We cannot let the economy collapse.
-        Therefore, we must cut social programs.
-        """,
-        
-        # Ad hominem
-        """
-        Dr. Johnson argues for climate action.
-        Dr. Johnson was arrested for protesting.
-        Therefore, we should ignore Dr. Johnson's climate arguments.
-        """,
-        
-        # Slippery slope
-        """
-        If we allow same-sex marriage, people will want to marry animals.
-        We cannot allow people to marry animals.
-        Therefore, we should not allow same-sex marriage.
-        """
-    ]
+        # Split by double newlines to separate arguments
+        examples = [arg.strip() for arg in content.split('\n\n') if arg.strip()]
+        print(f"Loaded {len(examples)} arguments from {filename}")
+
+    except FileNotFoundError:
+        print(f"Error: File '{filename}' not found")
+        return
+    except Exception as e:
+        print(f"Error reading file: {e}")
+        return
     
     # Initialize debugger (set debug=True to see ASP programs)
     debugger = ArgumentDebugger(debug=False, show_structure=True)
