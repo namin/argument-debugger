@@ -18,6 +18,11 @@ export GEMINI_API_KEY=...
 python ad.py
 ```
 
+You can run with a custom file of examples, each separated by two newlines.
+```bash
+python ad.py examples.txt
+```
+
 See [sample output](output.txt).
 
 See [our tutorial](TUTORIAL.md) on encoding arguments in Answer Set Programming (ASP).
