@@ -614,6 +614,8 @@ class ArgumentDebugger:
         }
 
 def main():
+    print("# Output")
+
     import sys
     
     # Check if a file was provided as argument
@@ -640,9 +642,8 @@ def main():
     # Initialize debugger (set debug=True to see ASP programs)
     debugger = ArgumentDebugger(debug=False, show_structure=True)
 
-    print("# Output")
     for i, arg_text in enumerate(examples):
-        print(f"## EXAMPLE {i+1}")
+        print(f"\n## EXAMPLE {i+1}")
         print("Argument:", arg_text.strip())
         
         try:
