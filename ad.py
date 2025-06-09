@@ -592,9 +592,9 @@ class ArgumentDebugger:
         if self.show_structure:
             print("\nParsed structure:")
             for claim in argument.claims:
-                print(f"  {claim.id}: {claim.content} ({claim.type})")
+                print(f"- {claim.id}: {claim.content} ({claim.type})")
             for inf in argument.inferences:
-                print(f"  {inf.from_claims} → {inf.to_claim} ({inf.rule_type})")
+                print(f"- {inf.from_claims} → {inf.to_claim} ({inf.rule_type})")
         
         # 2. Analyze for issues
         print("\nAnalyzing logical structure...")

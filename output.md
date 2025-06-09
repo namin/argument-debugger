@@ -6,8 +6,8 @@ Argument: Crime rates have increased in our city.
 Parsing argument...
 
 Parsed structure:
-  c1: Crime rates have increased in our city. (premise)
-  c2: We need to hire more police officers. (conclusion)
+- c1: Crime rates have increased in our city. (premise)
+- c2: We need to hire more police officers. (conclusion)
 
 Analyzing logical structure...
 
@@ -32,10 +32,10 @@ Argument: Video games cause violence.
 Parsing argument...
 
 Parsed structure:
-  c1: Video games cause violence. (premise)
-  c2: Children play many video games. (premise)
-  c3: We should ban video games for children. (conclusion)
-  ['c1', 'c2'] → c3 (causal)
+- c1: Video games cause violence. (premise)
+- c2: Children play many video games. (premise)
+- c3: We should ban video games for children. (conclusion)
+- ['c1', 'c2'] → c3 (causal)
 
 Analyzing logical structure...
 
@@ -77,13 +77,13 @@ Argument: The Bible is true because it's the word of God.
 Parsing argument...
 
 Parsed structure:
-  c1: The Bible is true (intermediate)
-  c2: The Bible is the word of God (premise)
-  c3: We know it's the word of God because the Bible says so (premise)
-  c4: We should follow the Bible (conclusion)
-  ['c2'] → c1 (deductive)
-  ['c3'] → c2 (deductive)
-  ['c1'] → c4 (deductive)
+- c1: The Bible is true (intermediate)
+- c2: The Bible is the word of God (premise)
+- c3: We know it's the word of God because the Bible says so (premise)
+- c4: We should follow the Bible (conclusion)
+- ['c2'] → c1 (deductive)
+- ['c3'] → c2 (deductive)
+- ['c1'] → c4 (deductive)
 
 Analyzing logical structure...
 
