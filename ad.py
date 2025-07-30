@@ -45,11 +45,15 @@ class Repair:
 
 llm_model = "gemini-2.0-flash"
 def init_llm_client():
-    api_key = os.getenv('GEMINI_API_KEY')
-    if api_key:
-        return genai.Client(api_key=api_key)
+    gemini_api_key = os.getenv('GEMINI_API_KEY')
+    google_cloud_project = os.getenv('GOOGLE_CLOUD_PROJECT')
+    google_cloud_location = os.getenv('GOOGLE_CLOUD_LOCATION', "us-central1")
+    if gemini_api_key:
+        return genai.Client(api_key=gemini_api_key)
+    elif google_cloud_project:
+        return genai.Client(vertexai=True, project=google_cloud_project, location=google_cloud_location)
     else:
-        raise ValueError("Gemini API key required. Set GEMINI_API_KEY environment variable.")
+        raise ValueError("Gemini configuration required. Set GEMINI_API_KEY or GOOGLE_PROUD_PROJECT environment variables.")
 
 class ArgumentParser:
     """Uses language model to parse natural language arguments into formal structure"""
