@@ -14,7 +14,8 @@ pip install clingo google-genai
 ## Run
 
 ```bash
-export GEMINI_API_KEY=...
+export GEMINI_API_KEY=... # or
+export GOOGLE_CLOUD_PROJECT=...
 python ad.py
 ```
 
