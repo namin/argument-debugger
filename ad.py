@@ -46,13 +46,10 @@ class Repair:
 class ArgumentParser:
     """Uses Gemini to parse natural language arguments into formal structure"""
     
-    def __init__(self, api_key: Optional[str] = None):
-        if not api_key:
-            api_key = os.getenv('GEMINI_API_KEY')
-        
+    def __init__(self):
+        api_key = os.getenv('GEMINI_API_KEY')
         if api_key:
             self.client = genai.Client(api_key=api_key)
-            self.model_available = True
         else:
             raise ValueError("Gemini API key required. Set GEMINI_API_KEY environment variable.")
     
@@ -406,10 +403,8 @@ class ASPDebugger:
 class RepairGenerator:
     """Generates repairs for identified issues"""
     
-    def __init__(self, api_key: Optional[str] = None):
-        if not api_key:
-            api_key = os.getenv('GEMINI_API_KEY')
-        
+    def __init__(self):
+        api_key = os.getenv('GEMINI_API_KEY')
         if api_key:
             self.client = genai.Client(api_key=api_key)
     
@@ -575,10 +570,10 @@ class RepairGenerator:
 class ArgumentDebugger:
     """Main system that combines all components"""
     
-    def __init__(self, api_key: Optional[str] = None, debug: bool = False, show_structure: bool = True):
-        self.parser = ArgumentParser(api_key)
+    def __init__(self, debug: bool = False, show_structure: bool = True):
+        self.parser = ArgumentParser()
         self.analyzer = ASPDebugger(debug=debug)
-        self.repairer = RepairGenerator(api_key)
+        self.repairer = RepairGenerator()
         self.debug = debug
         self.show_structure = show_structure
     
