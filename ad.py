@@ -43,15 +43,19 @@ class Repair:
     content: Optional[str] = None
     confidence: float = 0.0
 
+llm_model = "gemini-2.0-flash"
+def init_llm_client():
+    api_key = os.getenv('GEMINI_API_KEY')
+    if api_key:
+        return genai.Client(api_key=api_key)
+    else:
+        raise ValueError("Gemini API key required. Set GEMINI_API_KEY environment variable.")
+
 class ArgumentParser:
-    """Uses Gemini to parse natural language arguments into formal structure"""
+    """Uses language model to parse natural language arguments into formal structure"""
     
     def __init__(self):
-        api_key = os.getenv('GEMINI_API_KEY')
-        if api_key:
-            self.client = genai.Client(api_key=api_key)
-        else:
-            raise ValueError("Gemini API key required. Set GEMINI_API_KEY environment variable.")
+        self.client = init_llm_client()
     
     def parse_argument(self, text: str) -> Argument:
         """Extract argument structure from natural language"""
@@ -109,7 +113,7 @@ class ArgumentParser:
         """
         
         response = self.client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=llm_model,
             contents=prompt
         )
         
@@ -404,9 +408,7 @@ class RepairGenerator:
     """Generates repairs for identified issues"""
     
     def __init__(self):
-        api_key = os.getenv('GEMINI_API_KEY')
-        if api_key:
-            self.client = genai.Client(api_key=api_key)
+        self.client = init_llm_client()
     
     def generate_repairs(self, argument: Argument, issues: List[Issue]) -> List[Repair]:
         """Generate concrete repairs for each issue"""
@@ -501,7 +503,7 @@ class RepairGenerator:
         """
         
         response = self.client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=llm_model,
             contents=prompt
         )
         
@@ -520,7 +522,7 @@ class RepairGenerator:
         """
         
         response = self.client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=llm_model,
             contents=prompt
         )
         
@@ -541,7 +543,7 @@ class RepairGenerator:
         """
         
         response = self.client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=llm_model,
             contents=prompt
         )
         
@@ -561,7 +563,7 @@ class RepairGenerator:
         """
         
         response = self.client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=llm_model,
             contents=prompt
         )
         
