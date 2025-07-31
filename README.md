@@ -43,7 +43,7 @@ See [our tutorial](TUTORIAL.md) on encoding arguments in Answer Set Programming 
   - Detects false dichotomies
   - Checks goal reachability
 
-- RepairGenerator: Uses Gemini to suggest concrete fixes
+- RepairGenerator: Uses LLM to suggest concrete fixes
   - Generates bridging premises for missing links
   - Suggests supporting evidence for unsupported claims
   - Recommends removing circular dependencies
