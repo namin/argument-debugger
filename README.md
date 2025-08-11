@@ -43,11 +43,12 @@ See [our tutorial](TUTORIAL.md) on encoding arguments in Answer Set Programming 
   - Detects false dichotomies
   - Checks goal reachability
 
-- RepairGenerator: Uses LLM to suggest concrete fixes
+- RepairGenerator: Uses LLM to suggest and rank concrete fixes
   - Generates bridging premises for missing links
   - Suggests supporting evidence for unsupported claims
   - Recommends removing circular dependencies
   - Proposes alternative options for false dichotomies
+  - Ranks repairs by minimality, plausibility, relevance, and evidence quality
 
 - ArgumentDebugger: Orchestrates the full pipeline
 

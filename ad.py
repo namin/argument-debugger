@@ -5,7 +5,7 @@ Argument Debugger: An LLM+ASP-based system for analyzing and repairing arguments
 
 import json
 import clingo
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 from google import genai
 import os
@@ -42,6 +42,8 @@ class Repair:
     description: str
     content: Optional[str] = None
     confidence: float = 0.0
+    score: float = 0.0  # Overall ranking score
+    score_breakdown: Dict[str, float] = field(default_factory=dict)  # Detailed scores
 
 llm_model = "gemini-2.0-flash"
 def init_llm_client():
@@ -409,10 +411,17 @@ class ASPDebugger:
         return result
 
 class RepairGenerator:
-    """Generates repairs for identified issues"""
+    """Generates and ranks repairs for identified issues"""
     
     def __init__(self):
         self.client = init_llm_client()
+        # Weights for repair ranking
+        self.ranking_weights = {
+            'minimality': 0.25,
+            'plausibility': 0.30,
+            'relevance': 0.25,
+            'evidence_quality': 0.20
+        }
     
     def generate_repairs(self, argument: Argument, issues: List[Issue]) -> List[Repair]:
         """Generate concrete repairs for each issue"""
@@ -470,7 +479,9 @@ class RepairGenerator:
                     confidence=0.85
                 ))
         
-        return repairs
+        # Rank repairs before returning
+        ranked_repairs = self._rank_repairs(repairs, argument, issues)
+        return ranked_repairs
     
     def _get_claim_content(self, argument: Argument, claim_id: str) -> str:
         """Get claim content by ID"""
@@ -572,6 +583,88 @@ class RepairGenerator:
         )
         
         return response.text.strip()
+    
+    def _rank_repairs(self, repairs: List[Repair], argument: Argument, issues: List[Issue]) -> List[Repair]:
+        """Rank repairs based on multiple criteria"""
+        for repair in repairs:
+            scores = {
+                'minimality': self._score_minimality(repair),
+                'plausibility': self._score_plausibility(repair),
+                'relevance': self._score_relevance(repair, issues),
+                'evidence_quality': self._score_evidence_quality(repair)
+            }
+            
+            # Calculate weighted total
+            total_score = sum(scores[k] * self.ranking_weights[k] for k in scores)
+            repair.score = total_score
+            repair.score_breakdown = scores
+        
+        # Sort by score (highest first)
+        repairs.sort(key=lambda r: r.score, reverse=True)
+        return repairs
+    
+    def _score_minimality(self, repair: Repair) -> float:
+        """Score based on repair simplicity (shorter is better)"""
+        if not repair.content:
+            return 0.5
+        length = len(repair.content)
+        if length < 100:
+            return 1.0
+        elif length < 200:
+            return 0.8
+        elif length < 400:
+            return 0.6
+        elif length < 600:
+            return 0.4
+        else:
+            return 0.2
+    
+    def _score_plausibility(self, repair: Repair) -> float:
+        """Score based on repair believability"""
+        # Use confidence as proxy for plausibility
+        # Could enhance with LLM evaluation if needed
+        return repair.confidence
+    
+    def _score_relevance(self, repair: Repair, issues: List[Issue]) -> float:
+        """Score how well repair addresses the issues"""
+        relevance_map = {
+            'missing_link': ['add_premise', 'add_inference'],
+            'unsupported_premise': ['add_premise', 'add_evidence'],
+            'circular': ['add_premise', 'remove_claim'],
+            'false_dichotomy': ['add_premise', 'qualify_claim']
+        }
+        
+        addressed = 0
+        for issue in issues:
+            if issue.type in relevance_map:
+                if repair.type in relevance_map.get(issue.type, []):
+                    addressed += 1
+        
+        return addressed / len(issues) if issues else 0.5
+    
+    def _score_evidence_quality(self, repair: Repair) -> float:
+        """Score quality of evidence in repair"""
+        if not repair.content:
+            return 0.0
+            
+        content_lower = repair.content.lower()
+        
+        # High-quality evidence indicators
+        quality_indicators = [
+            'study', 'research', 'data', 'statistics',
+            'percent', '%', 'university', 'journal',
+            'evidence', 'report', 'analysis'
+        ]
+        
+        # Count indicators (max 1.0)
+        score = sum(0.15 for indicator in quality_indicators 
+                   if indicator in content_lower)
+        
+        # Penalty for vague language
+        if any(word in content_lower for word in ['might', 'could', 'possibly', 'maybe']):
+            score *= 0.8
+            
+        return min(score, 1.0)
 
 class ArgumentDebugger:
     """Main system that combines all components"""
@@ -658,13 +751,19 @@ def main():
             else:
                 print("\n✅ No logical issues found!")
             
-            # Display repairs
+            # Display repairs with ranking
             if result['repairs']:
-                print("\n🔧 SUGGESTED REPAIRS:")
-                for repair in result['repairs']:
-                    print(f"  - {repair.type}: {repair.description}")
+                print("\n🔧 SUGGESTED REPAIRS (ranked):")
+                for i, repair in enumerate(result['repairs'][:3], 1):  # Show top 3
+                    print(f"  {i}. [{repair.type}] Score: {repair.score:.2f}")
+                    print(f"     {repair.description}")
                     if repair.content:
-                        print(f"    → \"{repair.content}\"")
+                        #content = repair.content if len(repair.content) < 200 else repair.content[:197] + "..."
+                        content = repair.content
+                        print(f"     → \"{content}\"")
+                    if repair.score_breakdown:
+                        scores_str = ", ".join(f"{k}={v:.2f}" for k, v in repair.score_breakdown.items())
+                        print(f"     (Scores: {scores_str})")
         
         except Exception as e:
             print(f"Error: {e}")
