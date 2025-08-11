@@ -31,26 +31,52 @@ See [our tutorial](TUTORIAL.md) on encoding arguments in Answer Set Programming 
 
 ## Key Components of Current Prototype
 
-- ArgumentParser: Uses LLM to extract formal structure from natural language
+### Processing Flow
+
+```
+Natural Language Argument
+         ↓
+[1. ArgumentParser] → LLM extracts claims and inferences
+         ↓
+Formal Structure (claims, inferences)
+         ↓
+[2. ASPDebugger] → Clingo identifies logical issues
+         ↓
+List of Issues (missing_link, circular, etc.)
+         ↓
+[3. RepairGenerator] → LLM generates repairs for each issue
+         ↓
+[4. Repair Ranking] → Scores each repair on 4 dimensions:
+    • Minimality (shorter is better)
+    • Plausibility (confidence score)
+    • Relevance (matches issue type from Clingo)
+    • Evidence quality (specificity of data)
+         ↓
+Ranked Repairs (top 3 shown)
+```
+
+### Component Details
+
+- **ArgumentParser**: Uses LLM to extract formal structure from natural language
   - Identifies claims (premises, intermediates, conclusions)
   - Maps inference relationships
   - Detects argument goals
 
-- ASPDebugger: Uses Clingo to analyze logical structure
+- **ASPDebugger**: Uses Clingo to analyze logical structure
   - Detects missing links between claims
   - Finds unsupported premises
   - Identifies circular reasoning (including transitive)
   - Detects false dichotomies
   - Checks goal reachability
 
-- RepairGenerator: Uses LLM to suggest and rank concrete fixes
+- **RepairGenerator**: Uses LLM to suggest and rank concrete fixes
   - Generates bridging premises for missing links
   - Suggests supporting evidence for unsupported claims
   - Recommends removing circular dependencies
   - Proposes alternative options for false dichotomies
   - Ranks repairs by minimality, plausibility, relevance, and evidence quality
 
-- ArgumentDebugger: Orchestrates the full pipeline
+- **ArgumentDebugger**: Orchestrates the full pipeline
 
 ## References for Future Work
 
