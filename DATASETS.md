@@ -15,6 +15,7 @@
   - https://arxiv.org/abs/2202.13758
   - https://github.com/causalNLP/logical-fallacy
   - https://github.com/tmakesense/logical-fallacy
+  - [`datasets/logicalfallacy.py`](datasets/logicalfallacy.py): converts the dataset to samples for Argument Debugger
 
 - IAM: A Comprehensive and Large-Scale Dataset for Integrated Argument Mining Tasks (2022)
   - https://arxiv.org/abs/2203.12257
