@@ -1,0 +1,6 @@
+{
+  "description": "Tests false dichotomy detection - first should flag, others shouldn't",
+  "must_find": [],
+  "may_find": ["false_dichotomy", "unsupported_premise", "missing_link"],
+  "must_not_find": ["circular"]
+}

@@ -1,0 +1,6 @@
+{
+  "description": "Valid deductive argument - bachelor definition",
+  "must_find": [],
+  "may_find": [],
+  "must_not_find": ["circular", "false_dichotomy", "missing_link", "unsupported_premise"]
+}

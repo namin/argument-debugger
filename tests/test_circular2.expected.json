@@ -1,0 +1,5 @@
+{
+  "must_find": [],
+  "may_find": ["circular", "unsupported_premise"],
+  "must_not_find": ["false_dichotomy"]
+}
