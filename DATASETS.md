@@ -2,6 +2,7 @@
 
 - OpenDebateEvidence: A Massive-Scale Argument Mining and Summarization Dataset (2024)
   - https://arxiv.org/abs/2406.14657
+  - [`dataset/opendebate.py`](dataset/opendebate.py): converts the dataset to summary samples for Argument Debugger
 
 - CoCoLoFa: A Dataset of News Comments with Common Logical Fallacies Written by LLM-Assisted Crowds (2024)
   - https://arxiv.org/abs/2410.03457
