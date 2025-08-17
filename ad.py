@@ -86,7 +86,13 @@ class ArgumentParser:
            - Each list contains IDs of claims that are semantically equivalent
            - Example: [["c1", "c3"]] if c1 and c3 are restatements of each other
         
-        4. Goal claim: The main conclusion (if identifiable)
+        4. Dichotomies: Claims that present "either/or" choices
+           - List of objects with: id (claim id), justified (true if logically exhaustive, false if false dichotomy)
+           - Mark justified=true for: X or not-X, binary states (alive/dead), logical opposites
+           - Mark justified=false for: policy choices, most real-world scenarios with multiple options
+           - Example: [{{"id": "c1", "justified": false}}]
+        
+        5. Goal claim: The main conclusion (if identifiable)
         
         CRITICAL INSTRUCTIONS:
         - If there's a gap between premises and conclusion (e.g., "Crime increased. Therefore we need more police"), 
@@ -147,13 +153,17 @@ class ArgumentParser:
         # Store equivalences if provided
         equivalences = data.get('equivalences', [])
         
+        # Store dichotomies if provided
+        dichotomies = data.get('dichotomies', [])
+        
         arg = Argument(
             claims=claims,
             inferences=inferences,
             goal_claim=data.get('goal_claim')
         )
-        # Add equivalences as an attribute (not in dataclass definition)
+        # Add equivalences and dichotomies as attributes (not in dataclass definition)
         arg.equivalences = equivalences
+        arg.dichotomies = dichotomies
         
         return arg
 
@@ -290,13 +300,16 @@ class ASPDebugger:
             if self._is_empirical_claim(content):
                 program += f'empirical_claim("{claim_id}").\n'
         
-        # Add facts about dichotomous claims
-        program += "\n% Mark dichotomous claims\n"
-        for claim_id, content in claim_contents.items():
-            if self._is_dichotomous_claim(content):
-                program += f'dichotomous_claim("{claim_id}").\n'
-                if self.debug:
-                    print(f"Marked {claim_id} as dichotomous: {content}")
+        # Add facts about dichotomous claims from parser
+        if hasattr(argument, 'dichotomies') and argument.dichotomies:
+            program += "\n% Dichotomies identified by parser\n"
+            for dichot in argument.dichotomies:
+                claim_id = dichot.get('id')
+                justified = dichot.get('justified', False)
+                if not justified:  # Only mark unjustified dichotomies
+                    program += f'false_dichotomy_claim("{claim_id}").\n'
+                    if self.debug:
+                        print(f"Marked {claim_id} as false dichotomy")
         
         program += """
         % Track which claims have incoming inferences
@@ -363,15 +376,9 @@ class ASPDebugger:
             supports(X, Y).
         
         % Detect false dichotomies
-        % A false dichotomy is when a claim presents exactly two options
-        % without proving these are the ONLY options
+        % Parser identifies which dichotomies are unjustified
         false_dichotomy(C) :- 
-            dichotomous_claim(C),
-            claim(C, _).
-        
-        % Note: We're marking ALL dichotomous claims as false dichotomies
-        % because proving that only two options exist is extremely rare
-        % in natural language arguments
+            false_dichotomy_claim(C).
         
         #show missing_link/2.
         #show unsupported_premise/1.
@@ -393,26 +400,6 @@ class ASPDebugger:
         content_lower = content.lower()
         return any(indicator in content_lower for indicator in empirical_indicators)
     
-    def _is_dichotomous_claim(self, content: str) -> bool:
-        """Check if a claim presents exactly two options"""
-        import re
-        
-        dichotomy_patterns = [
-            r"either\s+.+\s+or\s+",  # Changed from .+? to .+ for greedy matching
-            r"we must choose between\s+.+\s+and\s+",
-            r"if not\s+.+,\s*then\s+",
-            r"only two options",
-            r"it's\s+.+\s+or\s+",
-            r"you're either\s+.+\s+or\s+"
-        ]
-        
-        content_lower = content.lower()
-        result = any(re.search(pattern, content_lower) for pattern in dichotomy_patterns)
-        
-        if self.debug and result:
-            print(f"Detected dichotomous claim: {content}")
-        
-        return result
 
 class RepairGenerator:
     """Generates and ranks repairs for identified issues"""
@@ -698,6 +685,11 @@ class ArgumentDebugger:
                 print("Equivalences:")
                 for equiv_set in argument.equivalences:
                     print(f"- {equiv_set} (semantically equivalent)")
+            if hasattr(argument, 'dichotomies') and argument.dichotomies:
+                print("Dichotomies:")
+                for dichot in argument.dichotomies:
+                    justified_str = "justified" if dichot.get('justified') else "unjustified"
+                    print(f"- {dichot.get('id')} ({justified_str})")
         
         # 2. Analyze for issues
         print("\nAnalyzing logical structure...")
