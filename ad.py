@@ -95,6 +95,7 @@ class ArgumentParser:
           one from A to B and one from B to A.
         - Only include inferences that are explicitly stated or directly implied by logical connectors 
           like "because", "therefore", "since", etc.
+        - To help in detecting circular epistemic reasoning, add a presupposition inference from a reliability claim to each claim that cites that source.
         - Mark claims as equivalent ONLY if they make essentially the same assertion.
           For example: "Democracy is the best form of government" and "Democracy is the best system" 
           are equivalent (both assert democracy's superiority)
