@@ -84,4 +84,4 @@ Ranked Repairs (top 3 shown)
 - [International Competition on Computational Models of Argumentation (ICCMA)](https://www.argumentationcompetition.org/)
 - [ArgDown](https://argdown.org/)
 - [Argunauts: Open LLMs that Master Argument Analysis with Argdown](https://huggingface.co/blog/ggbetz/argunauts-intro)
-- [google/langextract](https://github.com/google/langextract) might be a good way to extract structured arguments from text?
+
