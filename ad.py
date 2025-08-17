@@ -672,12 +672,13 @@ class RepairGenerator:
 class ArgumentDebugger:
     """Main system that combines all components"""
     
-    def __init__(self, debug: bool = False, show_structure: bool = True):
+    def __init__(self, debug: bool = False, show_structure: bool = True, generate_repairs: bool = True):
         self.parser = ArgumentParser()
         self.analyzer = ASPDebugger(debug=debug)
         self.repairer = RepairGenerator()
         self.debug = debug
         self.show_structure = show_structure
+        self.generate_repairs = generate_repairs
     
     def debug_argument(self, argument_text: str) -> Dict:
         """Complete debugging pipeline"""
@@ -692,6 +693,10 @@ class ArgumentDebugger:
                 print(f"- {claim.id}: {claim.content} ({claim.type})")
             for inf in argument.inferences:
                 print(f"- {inf.from_claims} → {inf.to_claim} ({inf.rule_type})")
+            if hasattr(argument, 'equivalences') and argument.equivalences:
+                print("Equivalences:")
+                for equiv_set in argument.equivalences:
+                    print(f"- {equiv_set} (semantically equivalent)")
         
         # 2. Analyze for issues
         print("\nAnalyzing logical structure...")
@@ -699,9 +704,11 @@ class ArgumentDebugger:
         
         # 3. Generate repairs
         repairs = []
-        if issues:
+        if issues and self.generate_repairs:
             print(f"\nFound {len(issues)} issues. Generating repairs...")
             repairs = self.repairer.generate_repairs(argument, issues)
+        elif issues:
+            print(f"\nFound {len(issues)} issues.")
         
         # 4. Return complete analysis
         return {
@@ -711,16 +718,24 @@ class ArgumentDebugger:
         }
 
 def main():
-    print("# Output")
-
     import sys
+    import argparse
     
-    # Check if a file was provided as argument
-    if len(sys.argv) > 1:
-        # Read arguments from file
-        filename = sys.argv[1]
-    else:
-        filename = 'examples.txt'
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description='Argument Debugger: Analyze and repair logical arguments')
+    parser.add_argument('file', nargs='?', default='examples.txt', 
+                       help='Input file containing arguments (default: examples.txt)')
+    parser.add_argument('--debug', action='store_true', 
+                       help='Show ASP programs and debug output')
+    parser.add_argument('--no-repairs', action='store_true',
+                       help='Skip generating repairs (faster, useful for testing)')
+    parser.add_argument('--no-structure', action='store_true',
+                       help='Hide parsed structure output')
+    
+    args = parser.parse_args()
+    
+    print("# Output")
+    filename = args.file
     try:
         with open(filename, 'r') as f:
             content = f.read()
@@ -736,8 +751,12 @@ def main():
         print(f"Error reading file: {e}")
         return
     
-    # Initialize debugger (set debug=True to see ASP programs)
-    debugger = ArgumentDebugger(debug=False, show_structure=True)
+    # Initialize debugger with command-line options
+    debugger = ArgumentDebugger(
+        debug=args.debug,
+        show_structure=not args.no_structure,
+        generate_repairs=not args.no_repairs
+    )
 
     for i, arg_text in enumerate(examples):
         print(f"\n## EXAMPLE {i+1}")
