@@ -92,7 +92,13 @@ class ArgumentParser:
            - Mark justified=false for: policy choices, most real-world scenarios with multiple options
            - Example: [{{"id": "c1", "justified": false}}]
         
-        5. Goal claim: The main conclusion (if identifiable)
+        5. Empirical claims: Claims that make factual assertions requiring evidence
+           - List of claim IDs that need empirical support
+           - Include: statistical claims, causal relationships, historical facts, scientific assertions
+           - Exclude: definitions, logical truths, value judgments, hypotheticals
+           - Example: ["c1", "c3"] if those claims need evidence
+        
+        6. Goal claim: The main conclusion (if identifiable)
         
         CRITICAL INSTRUCTIONS:
         - If there's a gap between premises and conclusion (e.g., "Crime increased. Therefore we need more police"), 
@@ -156,14 +162,18 @@ class ArgumentParser:
         # Store dichotomies if provided
         dichotomies = data.get('dichotomies', [])
         
+        # Store empirical claims if provided
+        empirical_claims = data.get('empirical_claims', [])
+        
         arg = Argument(
             claims=claims,
             inferences=inferences,
             goal_claim=data.get('goal_claim')
         )
-        # Add equivalences and dichotomies as attributes (not in dataclass definition)
+        # Add equivalences, dichotomies, and empirical_claims as attributes (not in dataclass definition)
         arg.equivalences = equivalences
         arg.dichotomies = dichotomies
+        arg.empirical_claims = empirical_claims
         
         return arg
 
@@ -294,10 +304,10 @@ class ASPDebugger:
         if argument.goal_claim:
             program += f'\n% Goal\ngoal("{argument.goal_claim}").\n'
         
-        # Add specific facts about empirical claims
-        program += "\n% Mark empirical claims that need evidence\n"
-        for claim_id, content in claim_contents.items():
-            if self._is_empirical_claim(content):
+        # Add empirical claims identified by parser
+        if hasattr(argument, 'empirical_claims') and argument.empirical_claims:
+            program += "\n% Empirical claims identified by parser\n"
+            for claim_id in argument.empirical_claims:
                 program += f'empirical_claim("{claim_id}").\n'
         
         # Add facts about dichotomous claims from parser
@@ -388,17 +398,6 @@ class ASPDebugger:
         
         return program
     
-    def _is_empirical_claim(self, content: str) -> bool:
-        """Check if a claim makes an empirical assertion needing evidence"""
-        empirical_indicators = [
-            "cause", "causes", "leads to", "results in",
-            "increased", "decreased", "rose", "fell",
-            "all", "every", "none", "always", "never",
-            "percent", "%", "rate", "statistics",
-            "study", "research", "data shows"
-        ]
-        content_lower = content.lower()
-        return any(indicator in content_lower for indicator in empirical_indicators)
     
 
 class RepairGenerator:
@@ -440,15 +439,14 @@ class RepairGenerator:
             elif issue.type == "unsupported_premise":
                 claim_content = self._get_claim_content(argument, issue.involved_claims[0])
                 
-                # Check if this is an empirical claim that needs evidence
-                if self._needs_evidence(claim_content):
-                    support = self._generate_support(claim_content)
-                    repairs.append(Repair(
-                        type="add_premise",
-                        description=f"Add supporting evidence for {issue.involved_claims[0]}",
-                        content=support,
-                        confidence=0.7
-                    ))
+                # Generate support for unsupported premises
+                support = self._generate_support(claim_content)
+                repairs.append(Repair(
+                    type="add_premise",
+                    description=f"Add supporting evidence for {issue.involved_claims[0]}",
+                    content=support,
+                    confidence=0.7
+                ))
             
             elif issue.type == "circular":
                 # For circular reasoning, suggest breaking the circle
@@ -481,17 +479,6 @@ class RepairGenerator:
                 return claim.content
         return ""
     
-    def _needs_evidence(self, claim: str) -> bool:
-        """Check if a claim is empirical and needs evidence"""
-        # Simple heuristic - check for causal/statistical/universal claims
-        empirical_indicators = [
-            "cause", "causes", "leads to", "results in",
-            "all", "every", "none", "always", "never",
-            "increase", "decrease", "correlation",
-            "percent", "rate", "statistics"
-        ]
-        claim_lower = claim.lower()
-        return any(indicator in claim_lower for indicator in empirical_indicators)
     
     def _generate_bridge(self, premises: str, conclusion: str) -> str:
         """Generate a bridging premise using LLM"""
