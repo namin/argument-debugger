@@ -82,7 +82,11 @@ class ArgumentParser:
            - to_claim (claim id)
            - rule_type (deductive/inductive/causal/definitional)
         
-        3. Goal claim: The main conclusion (if identifiable)
+        3. Equivalences: Lists of claim IDs that express the same idea
+           - Each list contains IDs of claims that are semantically equivalent
+           - Example: [["c1", "c3"]] if c1 and c3 are restatements of each other
+        
+        4. Goal claim: The main conclusion (if identifiable)
         
         CRITICAL INSTRUCTIONS:
         - If there's a gap between premises and conclusion (e.g., "Crime increased. Therefore we need more police"), 
@@ -91,6 +95,9 @@ class ArgumentParser:
           one from A to B and one from B to A.
         - Only include inferences that are explicitly stated or directly implied by logical connectors 
           like "because", "therefore", "since", etc.
+        - Mark claims as equivalent ONLY if they make essentially the same assertion.
+          For example: "Democracy is the best form of government" and "Democracy is the best system" 
+          are equivalent (both assert democracy's superiority)
         
         Example of missing link (no inference):
         {{
@@ -136,11 +143,18 @@ class ArgumentParser:
         claims = [Claim(**c) for c in data['claims']]
         inferences = [Inference(**i) for i in data['inferences']]
         
-        return Argument(
+        # Store equivalences if provided
+        equivalences = data.get('equivalences', [])
+        
+        arg = Argument(
             claims=claims,
             inferences=inferences,
             goal_claim=data.get('goal_claim')
         )
+        # Add equivalences as an attribute (not in dataclass definition)
+        arg.equivalences = equivalences
+        
+        return arg
 
 class ASPDebugger:
     """Uses ASP to analyze argument structure and find issues"""
@@ -169,33 +183,6 @@ class ASPDebugger:
                     involved_claims=[",".join(premise_ids), argument.goal_claim]
                 ))
         
-        # Check for circular patterns in natural language
-        # Look for "A because B" and "B because A" patterns
-        for i, claim1 in enumerate(argument.claims):
-            for j, claim2 in enumerate(argument.claims):
-                if i != j:
-                    # Check if claim1 references claim2 and vice versa
-                    claim1_lower = claim1.content.lower()
-                    claim2_lower = claim2.content.lower()
-                    
-                    # Look for circular justification patterns
-                    if ("because" in claim1_lower and 
-                        any(key in claim2_lower for key in ["true", "word of god", "says so"]) and
-                        "bible" in claim1_lower and "bible" in claim2_lower):
-                        
-                        # Check for the specific Bible circular reasoning pattern
-                        inference_chain = []
-                        for inf in argument.inferences:
-                            if inf.to_claim in [claim1.id, claim2.id]:
-                                inference_chain.append(inf)
-                        
-                        if len(inference_chain) >= 2:
-                            issues.append(Issue(
-                                type="circular",
-                                description=f"Circular reasoning: claims justify each other without independent support",
-                                involved_claims=[claim1.id, claim2.id]
-                            ))
-                            break
         
         # Build ASP program
         asp_program = self._build_asp_program(argument)
@@ -283,6 +270,16 @@ class ASPDebugger:
             for from_claim in inf.from_claims:
                 program += f'inference("{from_claim}", "{inf.to_claim}").\n'
         
+        # Add equivalences if they exist
+        if hasattr(argument, 'equivalences') and argument.equivalences:
+            program += "\n% Equivalences\n"
+            for equiv_set in argument.equivalences:
+                # Create equivalence facts for each pair in the set
+                for i, claim1 in enumerate(equiv_set):
+                    for claim2 in equiv_set[i+1:]:
+                        program += f'equivalent("{claim1}", "{claim2}").\n'
+                        program += f'equivalent("{claim2}", "{claim1}").\n'
+        
         if argument.goal_claim:
             program += f'\n% Goal\ngoal("{argument.goal_claim}").\n'
         
@@ -338,9 +335,15 @@ class ASPDebugger:
             claim(C, "premise"),
             empirical_claim(C).
         
-        % Detect circular reasoning
+        % Detect circular reasoning with equivalences
+        % Standard dependencies
         depends_on(X, Y) :- inference(Y, X).
         depends_on(X, Z) :- depends_on(X, Y), inference(Z, Y).
+        
+        % Key insight: if X depends on Y and Y is equivalent to X, that's circular!
+        circular_reasoning(X) :- depends_on(X, Y), equivalent(X, Y).
+        
+        % Also catch self-loops
         circular_reasoning(X) :- depends_on(X, X).
         
         % Also detect mutual dependency (A->B and B->A implicitly)
