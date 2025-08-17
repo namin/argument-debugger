@@ -2,7 +2,7 @@
 
 ## OpenDebateEvidence
 
-The script `opendebate.py` converts the OpenDebateEvidence dataset ([huggingface](https://huggingface.co/datasets/Yusuf5/OpenCaselist)), in streaming mode.
+The script `opendebate.py` converts the OpenDebateEvidence dataset ([huggingface](https://huggingface.co/datasets/Yusuf5/OpenCaselist)) to summary samples for Argument Debugger, in streaming mode.
 
 ### Setup
 
