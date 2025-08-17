@@ -46,13 +46,9 @@ List of Issues (missing_link, circular, etc.)
          ↓
 [3. RepairGenerator] → LLM generates repairs for each issue
          ↓
-[4. Repair Ranking] → Scores each repair on 4 dimensions:
-    • Minimality (shorter is better)
-    • Plausibility (confidence score)
-    • Relevance (matches issue type from Clingo)
-    • Evidence quality (specificity of data)
+[4. Repair Ranking] → Scores each repair
          ↓
-Ranked Repairs (top 3 shown)
+Ranked Repairs
 ```
 
 ### Component Details
