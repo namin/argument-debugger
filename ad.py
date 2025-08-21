@@ -8,6 +8,7 @@ import clingo
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 from google import genai
+from google.genai import types
 import os
 
 # Data structures
@@ -45,7 +46,10 @@ class Repair:
     score: float = 0.0  # Overall ranking score
     score_breakdown: Dict[str, float] = field(default_factory=dict)  # Detailed scores
 
-llm_model = "gemini-2.0-flash"
+llm_model = "gemini-2.5-flash"
+llm_config = types.GenerateContentConfig(
+        thinking_config=types.ThinkingConfig(thinking_budget=0)
+)
 def init_llm_client():
     gemini_api_key = os.getenv('GEMINI_API_KEY')
     google_cloud_project = os.getenv('GOOGLE_CLOUD_PROJECT')
@@ -140,7 +144,8 @@ class ArgumentParser:
         
         response = self.client.models.generate_content(
             model=llm_model,
-            contents=prompt
+            contents=prompt,
+            config=llm_config
         )
         
         # Extract JSON from response
@@ -497,7 +502,8 @@ class RepairGenerator:
         
         response = self.client.models.generate_content(
             model=llm_model,
-            contents=prompt
+            contents=prompt,
+            config=llm_config
         )
         
         return response.text.strip()
@@ -516,7 +522,8 @@ class RepairGenerator:
         
         response = self.client.models.generate_content(
             model=llm_model,
-            contents=prompt
+            contents=prompt,
+            config=llm_config
         )
         
         return response.text.strip()
@@ -537,7 +544,8 @@ class RepairGenerator:
         
         response = self.client.models.generate_content(
             model=llm_model,
-            contents=prompt
+            contents=prompt,
+            config=llm_config
         )
         
         return response.text.strip()
@@ -557,7 +565,8 @@ class RepairGenerator:
         
         response = self.client.models.generate_content(
             model=llm_model,
-            contents=prompt
+            contents=prompt,
+            config=llm_config
         )
         
         return response.text.strip()
