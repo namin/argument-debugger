@@ -33,7 +33,7 @@ class Argument:
 
 @dataclass
 class Issue:
-    type: str  # missing_link, unsupported_premise, contradiction, circular, false_dichotomy
+    type: str  # missing_link, unsupported_premise, contradiction, circular, false_dichotomy, slippery_slope
     description: str
     involved_claims: List[str]
 
@@ -102,7 +102,14 @@ class ArgumentParser:
            - Exclude: definitions, logical truths, value judgments, hypotheticals
            - Example: ["c1", "c3"] if those claims need evidence
         
-        6. Goal claim: The main conclusion (if identifiable)
+        6. Slippery slopes: Claims that argue one action leads to extreme consequences
+           - List of claim IDs that use slippery slope reasoning
+           - Look for: "if X then why not Y" where Y is extreme/absurd
+           - Look for: chains of consequences without justification for each step
+           - Look for: comparisons that jump categories (humans to animals/objects, consensual to non-consensual)
+           - Example: ["c3"] if c3 says "if gay marriage, why not marry animals"
+        
+        7. Goal claim: The main conclusion (if identifiable)
         
         CRITICAL INSTRUCTIONS:
         - If there's a gap between premises and conclusion (e.g., "Crime increased. Therefore we need more police"), 
@@ -170,15 +177,19 @@ class ArgumentParser:
         # Store empirical claims if provided
         empirical_claims = data.get('empirical_claims', [])
         
+        # Store slippery slopes if provided
+        slippery_slopes = data.get('slippery_slopes', [])
+        
         arg = Argument(
             claims=claims,
             inferences=inferences,
             goal_claim=data.get('goal_claim')
         )
-        # Add equivalences, dichotomies, and empirical_claims as attributes (not in dataclass definition)
+        # Add equivalences, dichotomies, empirical_claims, and slippery_slopes as attributes (not in dataclass definition)
         arg.equivalences = equivalences
         arg.dichotomies = dichotomies
         arg.empirical_claims = empirical_claims
+        arg.slippery_slopes = slippery_slopes
         
         return arg
 
@@ -264,6 +275,14 @@ class ASPDebugger:
                             description=f"False dichotomy: presents only two options when more may exist",
                             involved_claims=[claim_id]
                         ))
+                    
+                    elif atom.name == "slippery_slope":
+                        claim_id = str(atom.arguments[0]).strip('"')
+                        asp_issues.append(Issue(
+                            type="slippery_slope",
+                            description=f"Slippery slope: argues that one action leads to extreme consequences without justification",
+                            involved_claims=[claim_id]
+                        ))
                 
                 # Only take first model
                 break
@@ -325,6 +344,14 @@ class ASPDebugger:
                     program += f'false_dichotomy_claim("{claim_id}").\n'
                     if self.debug:
                         print(f"Marked {claim_id} as false dichotomy")
+        
+        # Add slippery slope claims identified by parser
+        if hasattr(argument, 'slippery_slopes') and argument.slippery_slopes:
+            program += "\n% Slippery slopes identified by parser\n"
+            for claim_id in argument.slippery_slopes:
+                program += f'slippery_slope_claim("{claim_id}").\n'
+                if self.debug:
+                    print(f"Marked {claim_id} as slippery slope")
         
         program += """
         % Track which claims have incoming inferences
@@ -395,10 +422,16 @@ class ASPDebugger:
         false_dichotomy(C) :- 
             false_dichotomy_claim(C).
         
+        % Detect slippery slopes
+        % Parser identifies claims using slippery slope reasoning
+        slippery_slope(C) :- 
+            slippery_slope_claim(C).
+        
         #show missing_link/2.
         #show unsupported_premise/1.
         #show circular_reasoning/1.
         #show false_dichotomy/1.
+        #show slippery_slope/1.
         """
         
         return program
@@ -471,6 +504,17 @@ class RepairGenerator:
                     description=f"Acknowledge alternative options beyond the presented dichotomy",
                     content=alternatives,
                     confidence=0.85
+                ))
+            
+            elif issue.type == "slippery_slope":
+                # For slippery slope, suggest justifying intermediate steps
+                claim_content = self._get_claim_content(argument, issue.involved_claims[0])
+                justification = self._generate_slope_justification(claim_content)
+                repairs.append(Repair(
+                    type="add_premise",
+                    description=f"Add justification for the progression or remove extreme comparison",
+                    content=justification,
+                    confidence=0.75
                 ))
         
         # Rank repairs before returning
@@ -571,6 +615,30 @@ class RepairGenerator:
         
         return response.text.strip()
     
+    def _generate_slope_justification(self, slippery_slope_claim: str) -> str:
+        """Generate justification for intermediate steps or suggest removing the extreme comparison"""
+        
+        prompt = f"""
+        This argument contains a slippery slope fallacy:
+        
+        Claim: {slippery_slope_claim}
+        
+        Either:
+        1. Explain what intermediate steps and evidence would be needed to justify this progression, OR
+        2. Suggest removing the extreme comparison and focusing on direct consequences
+        
+        Be specific about what's missing in the logical chain.
+        Format as a single clear statement.
+        """
+        
+        response = self.client.models.generate_content(
+            model=llm_model,
+            contents=prompt,
+            config=llm_config
+        )
+        
+        return response.text.strip()
+    
     def _rank_repairs(self, repairs: List[Repair], argument: Argument, issues: List[Issue]) -> List[Repair]:
         """Rank repairs based on multiple criteria"""
         for repair in repairs:
@@ -618,7 +686,8 @@ class RepairGenerator:
             'missing_link': ['add_premise', 'add_inference'],
             'unsupported_premise': ['add_premise', 'add_evidence'],
             'circular': ['add_premise', 'remove_claim'],
-            'false_dichotomy': ['add_premise', 'qualify_claim']
+            'false_dichotomy': ['add_premise', 'qualify_claim'],
+            'slippery_slope': ['add_premise', 'remove_claim']
         }
         
         addressed = 0
