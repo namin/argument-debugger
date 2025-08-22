@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Logical Form Analyzer V3 - Simplified FOL representation
-Uses plain dataclasses instead of Pydantic for recursive structures
+Logical Form Analyzer
+FOL representation uses plain dataclasses instead of Pydantic for recursive structures
 """
 
 import clingo
@@ -12,7 +12,7 @@ from google.genai import types
 import json
 
 # ============================================================================
-# SIMPLIFIED FOL STRUCTURE (using dataclasses)
+# FOL STRUCTURE (using dataclasses)
 # ============================================================================
 
 @dataclass
@@ -29,7 +29,7 @@ class FOLAtom:
 
 @dataclass
 class FOLFormula:
-    """A complete FOL formula - simplified representation"""
+    """A complete FOL formula"""
     type: Literal["atom", "not", "and", "or", "implies", "iff", "forall", "exists"]
     
     # For atoms
@@ -81,7 +81,7 @@ class LogicalArgument:
 # ============================================================================
 
 class LogicalAnalyzer:
-    """Analyzes logical form of arguments using simplified FOL"""
+    """Analyzes logical form of arguments using FOL"""
     
     def __init__(self, debug: bool = False):
         self.client = init_llm_client()
@@ -123,7 +123,7 @@ class LogicalAnalyzer:
         """Extract FOL structure from natural language"""
         
         prompt = f"""
-        Convert this argument to First-Order Logic using a simplified JSON representation.
+        Convert this argument to First-Order Logic using a JSON representation.
         
         Argument: {argument_text}
         
@@ -477,7 +477,7 @@ def main():
     """Test the logical form analyzer V3"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Logical Form Analyzer V3 - Simplified FOL')
+    parser = argparse.ArgumentParser(description='Logical Form Analyzer')
     parser.add_argument('file', nargs='?', default='examples_logical_form.txt',
                        help='Input file containing arguments (default: examples_logical_form.txt)')
     parser.add_argument('--debug', action='store_true', help='Show ASP program and debug output')
@@ -485,7 +485,7 @@ def main():
     args = parser.parse_args()
     
     # Read examples from file
-    print("# Logical Form Analysis V3 (Simplified)")
+    print("# Logical Form Analysis")
     filename = args.file
     try:
         with open(filename, 'r') as f:
