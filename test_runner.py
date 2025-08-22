@@ -13,14 +13,16 @@ import subprocess
 import tempfile
 
 class TestRunner:
-    def __init__(self, verbose=False):
+    def __init__(self, verbose=False, use_baseline=False):
         self.verbose = verbose
+        self.use_baseline = use_baseline
         self.results = []
     
-    def run_debugger(self, test_file: str) -> Dict:
+    def run_debugger(self, test_file: str, use_baseline: bool = False) -> Dict:
         """Run the argument debugger and capture output"""
-        # Run ad.py with --no-repairs flag and capture JSON-like output
-        cmd = [sys.executable, "ad.py", test_file, "--no-repairs"]
+        # Run ad.py or ad_baseline.py with --no-repairs flag and capture JSON-like output
+        script = "ad_baseline.py" if use_baseline else "ad.py"
+        cmd = [sys.executable, script, test_file, "--no-repairs"]
         
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -102,6 +104,12 @@ class TestRunner:
                 messages.append(f"Found forbidden issue: {must_not}")
                 passed = False
         
+        # Check status
+        if expected.get("may_find", []):
+            if not found_types_set:
+                messages.append("No issues found, but expected some")
+                passed = False
+
         # Display result
         if passed:
             print(f"  ✅ {test_name}: PASS")
@@ -121,7 +129,7 @@ class TestRunner:
         expected_file = test_file.replace('.txt', '.expected.json')
         
         # Run the debugger
-        output = self.run_debugger(test_file)
+        output = self.run_debugger(test_file, use_baseline=self.use_baseline)
         
         if update:
             # Update mode: save current output as expected
@@ -171,10 +179,12 @@ def main():
     parser.add_argument('--verbose', '-v', action='store_true', 
                        help='Show detailed output')
     parser.add_argument('--dir', default='tests', help='Directory to search for tests')
+    parser.add_argument('--baseline', action='store_true',
+                       help='Use ad_baseline.py instead of ad.py')
     
     args = parser.parse_args()
     
-    runner = TestRunner(verbose=args.verbose)
+    runner = TestRunner(verbose=args.verbose, use_baseline=args.baseline)
     
     if args.all:
         runner.run_all_tests(args.dir, update=args.update)

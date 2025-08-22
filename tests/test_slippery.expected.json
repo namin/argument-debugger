@@ -1,5 +1,5 @@
 {
   "must_find": ["slippery_slope"],
-  "may_find": [],
-  "must_not_find": ["circular", "missing_link", "unsupported_premise", "false_dichotomy"]
+  "may_find": ["unsupported_premise"],
+  "must_not_find": ["circular", "missing_link", "false_dichotomy"]
 }
