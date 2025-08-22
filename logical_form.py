@@ -1,102 +1,174 @@
 #!/usr/bin/env python3
 """
-Logical Form Analyzer - Deep structure analysis of arguments
-Extracts logical predicates, quantifiers, and analyzes validity using ASP
+Logical Form Analyzer V3 - Simplified FOL representation
+Uses plain dataclasses instead of Pydantic for recursive structures
 """
 
 import clingo
 from ad import init_llm_client
-from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Literal
+from dataclasses import dataclass
+from typing import List, Dict, Optional, Literal, Union
 from google.genai import types
+import json
 
-# Pydantic models for logical structure
-class Predicate(BaseModel):
-    """A logical predicate like Bird(x) or Flies(x)"""
-    name: str = Field(description="Predicate name (e.g., 'bird', 'flies')")
-    arguments: List[str] = Field(description="Arguments to the predicate (e.g., ['x'], ['penguin'])")
-    negated: bool = Field(default=False, description="Whether the predicate is negated")
+# ============================================================================
+# SIMPLIFIED FOL STRUCTURE (using dataclasses)
+# ============================================================================
 
-class QuantifiedStatement(BaseModel):
-    """A quantified statement like ∀x(Bird(x) → Flies(x))"""
-    claim_id: str = Field(description="Claim identifier")
-    quantifier: Literal["universal", "existential", "none"] = Field(
-        description="Type of quantifier: universal (∀), existential (∃), or none"
-    )
-    variable: Optional[str] = Field(default=None, description="Quantified variable (e.g., 'x')")
-    antecedent: Optional[Predicate] = Field(default=None, description="If-part of conditional")
-    consequent: Optional[Predicate] = Field(default=None, description="Then-part of conditional")
-    predicate: Optional[Predicate] = Field(default=None, description="Simple predicate (non-conditional)")
-    connective: Optional[Literal["implies", "and", "or"]] = Field(
-        default=None, description="Logical connective between antecedent and consequent"
-    )
+@dataclass
+class FOLAtom:
+    """Atomic formula: predicate(term1, term2, ...)"""
+    predicate: str
+    terms: List[str]
+    
+    def to_string(self) -> str:
+        if self.terms:
+            return f"{self.predicate}({','.join(self.terms)})"
+        else:
+            return f"{self.predicate}()"
 
-class LogicalInference(BaseModel):
-    """An inference with its pattern"""
-    from_claims: List[str] = Field(description="Source claim IDs")
-    to_claim: str = Field(description="Target claim ID")
-    pattern: str = Field(
-        description="Inference pattern: modus_ponens, modus_tollens, syllogism, affirming_consequent, etc."
-    )
+@dataclass
+class FOLFormula:
+    """A complete FOL formula - simplified representation"""
+    type: Literal["atom", "not", "and", "or", "implies", "iff", "forall", "exists"]
+    
+    # For atoms
+    atom: Optional[FOLAtom] = None
+    
+    # For unary/binary operators
+    left: Optional['FOLFormula'] = None
+    right: Optional['FOLFormula'] = None
+    
+    # For quantifiers
+    variable: Optional[str] = None
+    body: Optional['FOLFormula'] = None
+    
+    def to_string(self) -> str:
+        if self.type == "atom" and self.atom:
+            return self.atom.to_string()
+        elif self.type == "not" and self.left:
+            return f"¬{self.left.to_string()}"
+        elif self.type in ["and", "or", "implies", "iff"] and self.left and self.right:
+            symbols = {"and": "∧", "or": "∨", "implies": "→", "iff": "↔"}
+            return f"({self.left.to_string()} {symbols[self.type]} {self.right.to_string()})"
+        elif self.type in ["forall", "exists"] and self.variable and self.body:
+            symbol = "∀" if self.type == "forall" else "∃"
+            return f"{symbol}{self.variable}({self.body.to_string()})"
+        return "?"
 
-class LogicalForm(BaseModel):
-    """Complete logical structure of an argument"""
-    statements: List[QuantifiedStatement] = Field(
-        description="All logical statements in the argument"
-    )
-    inferences: List[LogicalInference] = Field(
-        description="Inferences between statements with their patterns"
-    )
-    goal: Optional[str] = Field(
-        default=None, description="ID of the main conclusion"
-    )
+@dataclass
+class LogicalStatement:
+    """A logical statement with an ID"""
+    id: str
+    formula: FOLFormula
+
+@dataclass
+class LogicalInference:
+    """An inference between statements"""
+    from_ids: List[str]
+    to_id: str
+    pattern: str  # modus_ponens, modus_tollens, etc.
+
+@dataclass
+class LogicalArgument:
+    """Complete logical argument in FOL"""
+    statements: List[LogicalStatement]
+    inferences: List[LogicalInference]
+    goal_id: Optional[str] = None
+
+# ============================================================================
+# LOGICAL ANALYZER
+# ============================================================================
 
 class LogicalAnalyzer:
-    """Analyzes logical form of arguments"""
+    """Analyzes logical form of arguments using simplified FOL"""
     
     def __init__(self, debug: bool = False):
         self.client = init_llm_client()
         self.debug = debug
+    
+    def parse_formula_json(self, formula_dict: dict) -> FOLFormula:
+        """Parse JSON formula representation to FOLFormula object"""
+        formula_type = formula_dict.get("type")
         
-    def extract_logical_form(self, argument_text: str) -> LogicalForm:
-        """Extract logical structure from natural language argument"""
+        if formula_type == "atom":
+            return FOLFormula(
+                type="atom",
+                atom=FOLAtom(
+                    predicate=formula_dict["predicate"],
+                    terms=formula_dict.get("terms", [])
+                )
+            )
+        elif formula_type == "not":
+            return FOLFormula(
+                type="not",
+                left=self.parse_formula_json(formula_dict["formula"])
+            )
+        elif formula_type in ["and", "or", "implies", "iff"]:
+            return FOLFormula(
+                type=formula_type,
+                left=self.parse_formula_json(formula_dict["left"]),
+                right=self.parse_formula_json(formula_dict["right"])
+            )
+        elif formula_type in ["forall", "exists"]:
+            return FOLFormula(
+                type=formula_type,
+                variable=formula_dict["variable"],
+                body=self.parse_formula_json(formula_dict["body"])
+            )
+        else:
+            raise ValueError(f"Unknown formula type: {formula_type}")
+    
+    def extract_logical_form(self, argument_text: str) -> LogicalArgument:
+        """Extract FOL structure from natural language"""
         
         prompt = f"""
-        Analyze this argument and extract its deep logical structure.
+        Convert this argument to First-Order Logic using a simplified JSON representation.
         
         Argument: {argument_text}
         
-        For each claim, identify:
-        1. Logical form (predicates, quantifiers, conditionals)
-        2. How claims connect logically
-        3. What inference patterns are used
+        Return a JSON object with this structure:
+        {{
+            "statements": [
+                {{
+                    "id": "s1",
+                    "formula": <formula_object>
+                }}
+            ],
+            "inferences": [
+                {{
+                    "from_ids": ["s1", "s2"],
+                    "to_id": "s3",
+                    "pattern": "modus_ponens"
+                }}
+            ],
+            "goal_id": "s3"
+        }}
         
-        IMPORTANT: Distinguish between:
-        - First-order logic (uses variables): "All X are Y", "Some X are Y"  
-        - Propositional logic (no variables): "If P then Q", "P and Q"
+        Where <formula_object> can be:
         
-        Examples of logical forms:
-        - "All birds fly" → First-order: ∀x(Bird(x) → Flies(x)), use variable 'x'
-        - "Penguins are birds" → Predicate: Bird(penguin), specific instance
-        - "Some birds walk" → First-order: ∃x(Bird(x) ∧ Walks(x)), use variable 'x'
-        - "If it rains, ground is wet" → Propositional: Rains → WetGround, NO variable
-        - "You didn't study" → Propositional: ¬StudyHard, NO variable
+        1. ATOMIC: {{"type": "atom", "predicate": "bird", "terms": ["x"]}}
+           - Use empty terms [] for propositional predicates like "rains"
         
-        Examples of inference patterns:
-        - modus_ponens: If P then Q, P, therefore Q
-        - modus_tollens: If P then Q, not Q, therefore not P
-        - syllogism: All A are B, All B are C, therefore All A are C
-        - affirming_consequent: If P then Q, Q, therefore P (INVALID!)
-        - denying_antecedent: If P then Q, not P, therefore not Q (INVALID!)
+        2. NEGATION: {{"type": "not", "formula": <formula_object>}}
         
-        Be precise about the logical structure. Identify the exact pattern used.
+        3. BINARY: {{"type": "and|or|implies|iff", "left": <formula_object>, "right": <formula_object>}}
+        
+        4. QUANTIFIER: {{"type": "forall|exists", "variable": "x", "body": <formula_object>}}
+        
+        Examples:
+        - "All birds fly" → {{"type": "forall", "variable": "x", "body": {{"type": "implies", "left": {{"type": "atom", "predicate": "bird", "terms": ["x"]}}, "right": {{"type": "atom", "predicate": "flies", "terms": ["x"]}}}}}}
+        - "It rains" → {{"type": "atom", "predicate": "rains", "terms": []}}
+        - "John is tall" → {{"type": "atom", "predicate": "tall", "terms": ["john"]}}
+        
+        Identify inference patterns: modus_ponens, modus_tollens, affirming_consequent, 
+        denying_antecedent, universal_instantiation, syllogism, hasty_generalization, 
+        existential_generalization, disjunctive_syllogism, hypothetical_syllogism
         """
         
         config = types.GenerateContentConfig(
             temperature=0.1,
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
-            response_mime_type="application/json",
-            response_schema=LogicalForm
+            response_mime_type="application/json"
         )
         
         response = self.client.models.generate_content(
@@ -105,210 +177,195 @@ class LogicalAnalyzer:
             config=config
         )
         
-        return LogicalForm.model_validate_json(response.text)
+        # Parse JSON response
+        data = json.loads(response.text)
+        
+        # Convert to dataclass objects
+        statements = []
+        for stmt_data in data["statements"]:
+            formula = self.parse_formula_json(stmt_data["formula"])
+            statements.append(LogicalStatement(
+                id=stmt_data["id"],
+                formula=formula
+            ))
+        
+        inferences = []
+        for inf_data in data.get("inferences", []):
+            inferences.append(LogicalInference(
+                from_ids=inf_data["from_ids"],
+                to_id=inf_data["to_id"],
+                pattern=inf_data["pattern"]
+            ))
+        
+        return LogicalArgument(
+            statements=statements,
+            inferences=inferences,
+            goal_id=data.get("goal_id")
+        )
     
-    def build_asp_program(self, logical_form: LogicalForm) -> str:
-        """Convert logical form to ASP program"""
+    def formula_to_asp_facts(self, formula: FOLFormula, stmt_id: str, fact_counter: List[int]) -> str:
+        """Convert FOL formula to ASP facts"""
+        asp = ""
+        fact_id = fact_counter[0]
+        fact_counter[0] += 1
         
-        program = "% Logical statements\n"
+        if formula.type == "atom" and formula.atom:
+            atom = formula.atom
+            if not atom.terms:  # Propositional
+                asp += f'prop_atom({fact_id}, "{stmt_id}", "{atom.predicate}").\n'
+            else:
+                asp += f'fol_atom({fact_id}, "{stmt_id}", "{atom.predicate}").\n'
+                for i, term in enumerate(atom.terms):
+                    if term in ['x', 'y', 'z']:  # Variable
+                        asp += f'has_var({fact_id}, {i}, "{term}").\n'
+                    else:  # Constant
+                        asp += f'has_const({fact_id}, {i}, "{term}").\n'
         
-        # Add each statement as facts
-        for stmt in logical_form.statements:
-            claim_id = stmt.claim_id
-            
-            if stmt.quantifier == "universal" and stmt.antecedent and stmt.consequent:
-                # Universal conditional: ∀x(P(x) → Q(x))
-                program += f'universal_conditional("{claim_id}", "{stmt.variable}", '
-                program += f'"{stmt.antecedent.name}", "{stmt.consequent.name}").\n'
-                
-            elif stmt.quantifier == "existential" and stmt.predicate:
-                # Existential: ∃x P(x)
-                program += f'existential("{claim_id}", "{stmt.variable}", "{stmt.predicate.name}").\n'
-                
-            elif stmt.predicate:  # Handle any predicate, with or without quantifier
-                # Simple predicate: P(a) or P()
-                pred = stmt.predicate
-                if pred.arguments and any(arg for arg in pred.arguments):  # Has non-empty arguments
-                    for arg in pred.arguments:
-                        if arg:  # Skip empty arguments
-                            if pred.negated:
-                                program += f'negated_fact("{claim_id}", "{pred.name}", "{arg}").\n'
-                            else:
-                                program += f'fact("{claim_id}", "{pred.name}", "{arg}").\n'
-                else:  # No arguments or empty arguments - propositional
-                    if pred.negated:
-                        program += f'negated_fact("{claim_id}", "{pred.name}", "true").\n'
-                    else:
-                        program += f'fact("{claim_id}", "{pred.name}", "true").\n'
-                        
-            elif stmt.antecedent and stmt.consequent and stmt.connective == "implies":
-                # Simple conditional (no quantifier): P → Q
-                program += f'conditional("{claim_id}", "{stmt.antecedent.name}", "{stmt.consequent.name}").\n'
+        elif formula.type == "not" and formula.left:
+            inner_id = fact_counter[0]
+            asp += f'negation({fact_id}, "{stmt_id}", {inner_id}).\n'
+            asp += self.formula_to_asp_facts(formula.left, stmt_id, fact_counter)
+        
+        elif formula.type in ["and", "or", "implies", "iff"] and formula.left and formula.right:
+            left_id = fact_counter[0]
+            fact_counter[0] += 1
+            right_id = fact_counter[0]
+            asp += f'binary({fact_id}, "{stmt_id}", "{formula.type}", {left_id}, {right_id}).\n'
+            asp += self.formula_to_asp_facts(formula.left, stmt_id, fact_counter)
+            asp += self.formula_to_asp_facts(formula.right, stmt_id, fact_counter)
+        
+        elif formula.type in ["forall", "exists"] and formula.variable and formula.body:
+            body_id = fact_counter[0]
+            asp += f'quantifier({fact_id}, "{stmt_id}", "{formula.type}", "{formula.variable}", {body_id}).\n'
+            asp += self.formula_to_asp_facts(formula.body, stmt_id, fact_counter)
+        
+        return asp
+    
+    def build_asp_program(self, argument: LogicalArgument) -> str:
+        """Convert logical argument to ASP program"""
+        
+        program = "% Logical statements as FOL formulas\n"
+        fact_counter = [1]  # Mutable counter for fact IDs
+        
+        # Convert each statement's formula to ASP facts
+        for stmt in argument.statements:
+            program += f'\n% Statement {stmt.id}: {stmt.formula.to_string()}\n'
+            program += f'statement("{stmt.id}").\n'
+            program += self.formula_to_asp_facts(stmt.formula, stmt.id, fact_counter)
         
         # Add inferences
         program += "\n% Inferences\n"
-        for inf in logical_form.inferences:
-            # ASP doesn't support lists directly, so we'll use a different representation
-            for from_claim in inf.from_claims:
-                program += f'inference_from("{inf.to_claim}", "{from_claim}").\n'
-            program += f'inference_pattern("{inf.to_claim}", "{inf.pattern}").\n'
+        for inf in argument.inferences:
+            for from_id in inf.from_ids:
+                program += f'inference_from("{inf.to_id}", "{from_id}").\n'
+            program += f'inference_pattern("{inf.to_id}", "{inf.pattern}").\n'
         
         # Add goal if present
-        if logical_form.goal:
-            program += f'\n% Goal\ngoal("{logical_form.goal}").\n'
+        if argument.goal_id:
+            program += f'\n% Goal\ngoal("{argument.goal_id}").\n'
         
-        # Add ASP rules for detecting issues
+        # Add analysis rules
         program += """
-        
-% Valid inference patterns
-valid_pattern("modus_ponens").
-valid_pattern("modus_tollens").
-valid_pattern("universal_instantiation").
-valid_pattern("syllogism_barbara").  % All M are P, All S are M, therefore All S are P
-valid_pattern("disjunctive_syllogism").
 
-% Invalid inference patterns (formal fallacies)
-fallacy("affirming_consequent").
-fallacy("denying_antecedent").
-fallacy("existential_instantiation_error").  % Some X are Y, a is X, therefore a is Y (invalid!)
-fallacy("illicit_major").
-fallacy("illicit_minor").
+% ============================================================================
+% PATTERN DETECTION RULES
+% ============================================================================
 
-% Detect invalid inferences
-invalid_inference(To, Pattern) :-
-    inference_pattern(To, Pattern),
-    fallacy(Pattern).
+% Helper: Check if inference is from specific statements
+inference_from_both(To, S1, S2) :-
+    inference_from(To, S1),
+    inference_from(To, S2),
+    S1 != S2.
 
-% Helper: check if inference is from two specific claims
-inference_from_both(To, C1, C2) :-
-    inference_from(To, C1),
-    inference_from(To, C2),
-    C1 != C2.
+% Detect modus ponens: P→Q, P, therefore Q
+valid_modus_ponens(S1, S2, S3) :-
+    binary(_, S1, "implies", _, _),
+    statement(S2),
+    statement(S3),
+    inference_from_both(S3, S1, S2),
+    inference_pattern(S3, "modus_ponens").
 
-% Detect modus ponens structure
-actual_modus_ponens(C1, C2, C3) :-
-    conditional(C1, P, Q),     % If P then Q
-    fact(C2, P, _),            % P is true
-    fact(C3, Q, _),            % Therefore Q
-    inference_from_both(C3, C1, C2),
-    inference_pattern(C3, "modus_ponens").
+% Detect modus tollens: P→Q, ¬Q, therefore ¬P
+valid_modus_tollens(S1, S2, S3) :-
+    binary(_, S1, "implies", _, _),
+    negation(_, S2, _),
+    negation(_, S3, _),
+    inference_from_both(S3, S1, S2),
+    inference_pattern(S3, "modus_tollens").
 
-% Detect affirming the consequent
-actual_affirming_consequent(C1, C2, C3) :-
-    conditional(C1, P, Q),     % If P then Q  
-    fact(C2, Q, _),            % Q is true
-    fact(C3, P, _),            % Therefore P (INVALID!)
-    inference_from_both(C3, C1, C2).
+% Detect affirming consequent: P→Q, Q, therefore P (INVALID!)
+fallacy_affirming_consequent(S1, S2, S3) :-
+    binary(_, S1, "implies", _, _),
+    statement(S2),
+    statement(S3),
+    inference_from_both(S3, S1, S2),
+    inference_pattern(S3, "affirming_consequent").
 
-% Detect universal instantiation
-valid_universal_instantiation(C1, C2, C3) :-
-    universal_conditional(C1, X, Antecedent, Consequent),  % All X: P(X) -> Q(X)
-    fact(C2, Antecedent, Instance),                        % P(instance)
-    fact(C3, Consequent, Instance),                        % Therefore Q(instance)
-    inference_from_both(C3, C1, C2),
-    inference_pattern(C3, "universal_instantiation").
+% Detect denying antecedent: P→Q, ¬P, therefore ¬Q (INVALID!)
+fallacy_denying_antecedent(S1, S2, S3) :-
+    binary(_, S1, "implies", _, _),
+    negation(_, S2, _),
+    negation(_, S3, _),
+    inference_from_both(S3, S1, S2),
+    inference_pattern(S3, "denying_antecedent").
 
-% Detect syllogism
-valid_barbara(C1, C2, C3) :-
-    universal_conditional(C1, X, M, P),  % All M are P
-    universal_conditional(C2, Y, S, M),  % All S are M
-    universal_conditional(C3, Z, S, P),  % Therefore All S are P
-    inference_from_both(C3, C1, C2),
-    inference_pattern(C3, "syllogism").
+% Detect universal instantiation: ∀x P(x), therefore P(a)
+valid_universal_instantiation(S1, S2) :-
+    quantifier(_, S1, "forall", _, _),
+    statement(S2),
+    inference_from(S2, S1),
+    inference_pattern(S2, "universal_instantiation").
 
-% Detect quantifier errors
-quantifier_error(C1, C2, C3) :-
-    existential(C1, X, P),    % Some P are Q
-    fact(C2, P, A),           % A is P
-    fact(C3, Q, A),           % Therefore A is Q (INVALID!)
-    inference_from_both(C3, C1, C2).
+% Detect syllogism: All A are B, All B are C, therefore All A are C
+valid_syllogism(S1, S2, S3) :-
+    quantifier(_, S1, "forall", _, _),
+    quantifier(_, S2, "forall", _, _),
+    quantifier(_, S3, "forall", _, _),
+    inference_from_both(S3, S1, S2),
+    inference_pattern(S3, "syllogism").
 
-% Detect modus tollens (valid)
-valid_modus_tollens(C1, C2, C3) :-
-    conditional(C1, P, Q),          % If P then Q
-    negated_fact(C2, Q, _),        % Not Q
-    negated_fact(C3, P, _),        % Therefore not P
-    inference_from_both(C3, C1, C2),
-    inference_pattern(C3, "modus_tollens").
+% Detect hasty generalization: P(a), therefore ∀x P(x) (INVALID!)
+fallacy_hasty_generalization(S1, S2) :-
+    fol_atom(_, S1, _),
+    has_const(_, _, _),
+    quantifier(_, S2, "forall", _, _),
+    inference_from(S2, S1),
+    inference_pattern(S2, "hasty_generalization").
 
-% Detect denying the antecedent (fallacy)
-fallacy_denying_antecedent(C1, C2, C3) :-
-    conditional(C1, P, Q),          % If P then Q
-    negated_fact(C2, P, _),        % Not P
-    negated_fact(C3, Q, _),        % Therefore not Q (INVALID!)
-    inference_from_both(C3, C1, C2).
+% Detect existential generalization: P(a), therefore ∃x P(x) (VALID)
+valid_existential_generalization(S1, S2) :-
+    fol_atom(_, S1, _),
+    quantifier(_, S2, "exists", _, _),
+    inference_from(S2, S1),
+    inference_pattern(S2, "existential_generalization").
 
-% Detect disjunctive syllogism (valid)
-valid_disjunctive_syllogism(C1, C2, C3) :-
-    disjunction(C1, P, Q),         % P or Q
-    negated_fact(C2, P, _),        % Not P
-    fact(C3, Q, _),                % Therefore Q
-    inference_from_both(C3, C1, C2),
-    inference_pattern(C3, "disjunctive_syllogism").
+% Invalid patterns
+invalid_inference(To, "affirming_consequent") :-
+    inference_pattern(To, "affirming_consequent").
 
-% Detect hypothetical syllogism (valid)
-valid_hypothetical_syllogism(C1, C2, C3) :-
-    conditional(C1, P, Q),          % If P then Q
-    conditional(C2, Q, R),          % If Q then R
-    conditional(C3, P, R),          % Therefore if P then R
-    inference_from_both(C3, C1, C2),
-    inference_pattern(C3, "hypothetical_syllogism").
+invalid_inference(To, "denying_antecedent") :-
+    inference_pattern(To, "denying_antecedent").
 
-% Detect existential generalization (valid)
-valid_existential_generalization(C1, C2) :-
-    fact(C1, P, Instance),          % P(a)
-    existential(C2, X, P),          % Therefore ∃x P(x)
-    inference_from(C2, C1),
-    inference_pattern(C2, "existential_generalization").
+invalid_inference(To, "hasty_generalization") :-
+    inference_pattern(To, "hasty_generalization").
 
-% Detect hasty generalization (fallacy - from single instance to universal)
-fallacy_hasty_generalization(C1, C2) :-
-    fact(C1, P, Instance),          % P(a) - single instance
-    universal_conditional(C2, X, P, Q),  % Therefore ∀x P(x) (INVALID!)
-    inference_from(C2, C1).
-
-% Detect composition fallacy
-fallacy_composition(C1, C2, C3) :-
-    fact(C1, "part_of", Part, Whole),   % X is part of Y
-    fact(C2, Property, Part),           % X has property P
-    fact(C3, Property, Whole),          % Therefore Y has property P (INVALID!)
-    inference_from_both(C3, C1, C2).
-
-% Detect division fallacy
-fallacy_division(C1, C2, C3) :-
-    fact(C1, "part_of", Part, Whole),   % X is part of Y
-    fact(C2, Property, Whole),          % Y has property P
-    fact(C3, Property, Part),           % Therefore X has property P (INVALID!)
-    inference_from_both(C3, C1, C2).
-
-% Check for missing logical steps
-missing_step(To) :-
-    inference_pattern(To, Pattern),
-    not valid_pattern(Pattern),
-    not fallacy(Pattern).
-
-#show invalid_inference/2.
-#show actual_affirming_consequent/3.
-#show quantifier_error/3.
-#show missing_step/1.
-#show valid_barbara/3.
-#show valid_universal_instantiation/3.
+#show valid_modus_ponens/3.
 #show valid_modus_tollens/3.
+#show fallacy_affirming_consequent/3.
 #show fallacy_denying_antecedent/3.
-#show valid_disjunctive_syllogism/3.
-#show valid_hypothetical_syllogism/3.
-#show valid_existential_generalization/2.
+#show valid_universal_instantiation/2.
+#show valid_syllogism/3.
 #show fallacy_hasty_generalization/2.
-#show fallacy_composition/3.
-#show fallacy_division/3.
+#show valid_existential_generalization/2.
+#show invalid_inference/2.
         """
         
         return program
     
-    def analyze(self, logical_form: LogicalForm) -> Dict:
-        """Analyze logical form using ASP"""
+    def analyze(self, argument: LogicalArgument) -> Dict:
+        """Analyze logical argument using ASP"""
         
-        asp_program = self.build_asp_program(logical_form)
+        asp_program = self.build_asp_program(argument)
         
         if self.debug:
             print("=== ASP Program ===")
@@ -329,104 +386,70 @@ missing_step(To) :-
                     print(f"Model: {[str(atom) for atom in model.symbols(shown=True)]}")
                 
                 for atom in model.symbols(shown=True):
-                    if atom.name == "invalid_inference":
-                        to_claim = str(atom.arguments[0]).strip('"')
-                        pattern = str(atom.arguments[1]).strip('"')
-                        issues.append({
-                            "type": "invalid_inference",
-                            "description": f"Invalid inference pattern '{pattern}' used for claim {to_claim}",
-                            "pattern": pattern
+                    atom_name = atom.name
+                    
+                    if atom_name == "valid_modus_ponens":
+                        s1, s2, s3 = [str(arg).strip('"') for arg in atom.arguments]
+                        valid_inferences.append({
+                            "type": "modus_ponens",
+                            "description": f"Valid modus ponens: [{s1}, {s2}] → {s3}"
                         })
                     
-                    elif atom.name == "actual_affirming_consequent":
-                        c1 = str(atom.arguments[0]).strip('"')
-                        c2 = str(atom.arguments[1]).strip('"')
-                        c3 = str(atom.arguments[2]).strip('"')
+                    elif atom_name == "valid_modus_tollens":
+                        s1, s2, s3 = [str(arg).strip('"') for arg in atom.arguments]
+                        valid_inferences.append({
+                            "type": "modus_tollens",
+                            "description": f"Valid modus tollens: [{s1}, {s2}] → {s3}"
+                        })
+                    
+                    elif atom_name == "fallacy_affirming_consequent":
+                        s1, s2, s3 = [str(arg).strip('"') for arg in atom.arguments]
                         issues.append({
                             "type": "affirming_consequent",
-                            "description": f"Fallacy of affirming the consequent: [{c1}, {c2}] → {c3}",
-                            "claims": [c1, c2, c3]
+                            "description": f"Fallacy - Affirming the consequent: [{s1}, {s2}] → {s3}"
                         })
                     
-                    elif atom.name == "quantifier_error":
-                        c1 = str(atom.arguments[0]).strip('"')
-                        c2 = str(atom.arguments[1]).strip('"')
-                        c3 = str(atom.arguments[2]).strip('"')
-                        issues.append({
-                            "type": "quantifier_error",
-                            "description": f"Invalid quantifier inference: Cannot go from 'some' to specific instance",
-                            "claims": [c1, c2, c3]
-                        })
-                    
-                    elif atom.name == "valid_barbara":
-                        c1 = str(atom.arguments[0]).strip('"')
-                        c2 = str(atom.arguments[1]).strip('"')
-                        c3 = str(atom.arguments[2]).strip('"')
-                        valid_inferences.append({
-                            "type": "valid_syllogism",
-                            "description": f"Valid syllogism (Barbara): [{c1}, {c2}] → {c3}"
-                        })
-                    
-                    elif atom.name == "valid_universal_instantiation":
-                        c1 = str(atom.arguments[0]).strip('"')
-                        c2 = str(atom.arguments[1]).strip('"')
-                        c3 = str(atom.arguments[2]).strip('"')
-                        valid_inferences.append({
-                            "type": "valid_universal_instantiation",
-                            "description": f"Valid universal instantiation: [{c1}, {c2}] → {c3}"
-                        })
-                    
-                    elif atom.name == "valid_modus_tollens":
-                        c1 = str(atom.arguments[0]).strip('"')
-                        c2 = str(atom.arguments[1]).strip('"')
-                        c3 = str(atom.arguments[2]).strip('"')
-                        valid_inferences.append({
-                            "type": "valid_modus_tollens",
-                            "description": f"Valid modus tollens: [{c1}, {c2}] → {c3}"
-                        })
-                    
-                    elif atom.name == "fallacy_denying_antecedent":
-                        c1 = str(atom.arguments[0]).strip('"')
-                        c2 = str(atom.arguments[1]).strip('"')
-                        c3 = str(atom.arguments[2]).strip('"')
+                    elif atom_name == "fallacy_denying_antecedent":
+                        s1, s2, s3 = [str(arg).strip('"') for arg in atom.arguments]
                         issues.append({
                             "type": "denying_antecedent",
-                            "description": f"Fallacy of denying the antecedent: [{c1}, {c2}] → {c3}",
-                            "claims": [c1, c2, c3]
+                            "description": f"Fallacy - Denying the antecedent: [{s1}, {s2}] → {s3}"
                         })
                     
-                    elif atom.name == "valid_disjunctive_syllogism":
-                        c1 = str(atom.arguments[0]).strip('"')
-                        c2 = str(atom.arguments[1]).strip('"')
-                        c3 = str(atom.arguments[2]).strip('"')
+                    elif atom_name == "valid_universal_instantiation":
+                        s1, s2 = [str(arg).strip('"') for arg in atom.arguments]
                         valid_inferences.append({
-                            "type": "valid_disjunctive_syllogism",
-                            "description": f"Valid disjunctive syllogism: [{c1}, {c2}] → {c3}"
+                            "type": "universal_instantiation",
+                            "description": f"Valid universal instantiation: {s1} → {s2}"
                         })
                     
-                    elif atom.name == "valid_hypothetical_syllogism":
-                        c1 = str(atom.arguments[0]).strip('"')
-                        c2 = str(atom.arguments[1]).strip('"')
-                        c3 = str(atom.arguments[2]).strip('"')
+                    elif atom_name == "valid_syllogism":
+                        s1, s2, s3 = [str(arg).strip('"') for arg in atom.arguments]
                         valid_inferences.append({
-                            "type": "valid_hypothetical_syllogism",
-                            "description": f"Valid hypothetical syllogism: [{c1}, {c2}] → {c3}"
+                            "type": "syllogism",
+                            "description": f"Valid syllogism: [{s1}, {s2}] → {s3}"
                         })
                     
-                    elif atom.name == "fallacy_hasty_generalization":
-                        c1 = str(atom.arguments[0]).strip('"')
-                        c2 = str(atom.arguments[1]).strip('"')
+                    elif atom_name == "fallacy_hasty_generalization":
+                        s1, s2 = [str(arg).strip('"') for arg in atom.arguments]
                         issues.append({
                             "type": "hasty_generalization",
-                            "description": f"Hasty generalization from single instance: {c1} → {c2}",
-                            "claims": [c1, c2]
+                            "description": f"Fallacy - Hasty generalization: {s1} → {s2}"
+                        })
+                    
+                    elif atom_name == "invalid_inference":
+                        to_id = str(atom.arguments[0]).strip('"')
+                        pattern = str(atom.arguments[1]).strip('"')
+                        issues.append({
+                            "type": "invalid_pattern",
+                            "description": f"Invalid inference pattern '{pattern}' for statement {to_id}"
                         })
                 
                 # Only take first model
                 break
         
         return {
-            "logical_form": logical_form,
+            "argument": argument,
             "issues": issues,
             "valid_inferences": valid_inferences
         }
@@ -435,45 +458,26 @@ missing_step(To) :-
         """Complete pipeline: extract and analyze logical form"""
         
         print("Extracting logical form...")
-        logical_form = self.extract_logical_form(argument_text)
+        argument = self.extract_logical_form(argument_text)
         
         print("\nLogical Structure:")
-        for stmt in logical_form.statements:
-            # Handle quantified conditionals (First-order logic)
-            if stmt.quantifier and stmt.variable and stmt.variable != "None" and stmt.antecedent and stmt.consequent:
-                if stmt.quantifier == "universal":
-                    print(f"  {stmt.claim_id}: ∀{stmt.variable}({stmt.antecedent.name}({stmt.variable}) → {stmt.consequent.name}({stmt.variable}))")
-                elif stmt.quantifier == "existential":
-                    print(f"  {stmt.claim_id}: ∃{stmt.variable}({stmt.antecedent.name}({stmt.variable}) ∧ {stmt.consequent.name}({stmt.variable}))")
-            # Handle propositional conditionals (no variables)
-            elif stmt.antecedent and stmt.consequent and (not stmt.variable or stmt.variable == "None"):
-                ant_neg = "¬" if stmt.antecedent.negated else ""
-                cons_neg = "¬" if stmt.consequent.negated else ""
-                print(f"  {stmt.claim_id}: {ant_neg}{stmt.antecedent.name} → {cons_neg}{stmt.consequent.name}")
-            # Handle predicates with arguments
-            elif stmt.predicate:
-                neg = "¬" if stmt.predicate.negated else ""
-                args = ",".join(stmt.predicate.arguments) if stmt.predicate.arguments else ""
-                # If existential quantifier, show it
-                if stmt.quantifier == "existential" and stmt.variable:
-                    print(f"  {stmt.claim_id}: ∃{stmt.variable}({neg}{stmt.predicate.name}({stmt.variable}))")
-                else:
-                    print(f"  {stmt.claim_id}: {neg}{stmt.predicate.name}({args})")
+        for stmt in argument.statements:
+            print(f"  {stmt.id}: {stmt.formula.to_string()}")
         
         print("\nInferences:")
-        for inf in logical_form.inferences:
-            print(f"  {inf.from_claims} → {inf.to_claim} ({inf.pattern})")
+        for inf in argument.inferences:
+            print(f"  {inf.from_ids} → {inf.to_id} ({inf.pattern})")
         
         print("\nAnalyzing with ASP...")
-        result = self.analyze(logical_form)
+        result = self.analyze(argument)
         
         return result
 
 def main():
-    """Test the logical form analyzer"""
+    """Test the logical form analyzer V3"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Logical Form Analyzer')
+    parser = argparse.ArgumentParser(description='Logical Form Analyzer V3 - Simplified FOL')
     parser.add_argument('file', nargs='?', default='examples_logical_form.txt',
                        help='Input file containing arguments (default: examples_logical_form.txt)')
     parser.add_argument('--debug', action='store_true', help='Show ASP program and debug output')
@@ -481,7 +485,7 @@ def main():
     args = parser.parse_args()
     
     # Read examples from file
-    print("# Logical Form Analysis")
+    print("# Logical Form Analysis V3 (Simplified)")
     filename = args.file
     try:
         with open(filename, 'r') as f:
@@ -521,7 +525,7 @@ def main():
             if result['issues']:
                 print("\n❌ LOGICAL ISSUES FOUND:")
                 for issue in result['issues']:
-                    print(f"  - {issue['type']}: {issue['description']}")
+                    print(f"  - {issue['description']}")
             
             if result['valid_inferences']:
                 print("\n✅ VALID INFERENCES:")
