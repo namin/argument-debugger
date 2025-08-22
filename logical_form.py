@@ -356,27 +356,43 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Logical Form Analyzer')
+    parser.add_argument('file', nargs='?', default='examples_logical_form.txt',
+                       help='Input file containing arguments (default: examples_logical_form.txt)')
     parser.add_argument('--debug', action='store_true', help='Show ASP program and debug output')
-    parser.add_argument('--example', type=int, help='Run a specific example (1-5)')
+    parser.add_argument('--example', type=int, help='Run a specific example (1-based index)')
     args = parser.parse_args()
     
-    # Example arguments with different logical structures
-    examples = {
-        1: "All birds can fly. Penguins are birds. Therefore, penguins can fly.",
-        2: "If it rains, the ground gets wet. The ground is wet. Therefore, it rained.",
-        3: "If you study hard, you will pass. You didn't pass. Therefore, you didn't study hard.",
-        4: "Some students are athletes. John is a student. Therefore, John is an athlete.",
-        5: "All mammals are animals. All dogs are mammals. Therefore, all dogs are animals."
-    }
+    # Read examples from file
+    print("# Logical Form Analysis")
+    filename = args.file
+    try:
+        with open(filename, 'r') as f:
+            content = f.read()
+        
+        # Split by double newlines to separate arguments
+        examples = [arg.strip() for arg in content.split('\n\n') if arg.strip()]
+        print(f"Loaded {len(examples)} arguments from {filename}")
+        
+    except FileNotFoundError:
+        print(f"Error: File '{filename}' not found")
+        return
+    except Exception as e:
+        print(f"Error reading file: {e}")
+        return
     
     analyzer = LogicalAnalyzer(debug=args.debug)
     
-    if args.example and args.example in examples:
-        arguments = {args.example: examples[args.example]}
+    # Select specific example or run all
+    if args.example:
+        if 1 <= args.example <= len(examples):
+            examples_to_run = [(args.example, examples[args.example - 1])]
+        else:
+            print(f"Error: Example {args.example} out of range (1-{len(examples)})")
+            return
     else:
-        arguments = examples
+        examples_to_run = enumerate(examples, 1)
     
-    for i, arg_text in arguments.items():
+    for i, arg_text in examples_to_run:
         print(f"\n{'='*60}")
         print(f"EXAMPLE {i}: {arg_text}")
         print('='*60)

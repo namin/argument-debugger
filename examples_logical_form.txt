@@ -1,0 +1,19 @@
+All birds can fly.
+Penguins are birds.
+Therefore, penguins can fly.
+
+If it rains, the ground gets wet.
+The ground is wet.
+Therefore, it rained.
+
+If you study hard, you will pass.
+You didn't pass.
+Therefore, you didn't study hard.
+
+Some students are athletes.
+John is a student.
+Therefore, John is an athlete.
+
+All mammals are animals.
+All dogs are mammals.
+Therefore, all dogs are animals.
