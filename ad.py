@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Argument Debugger: An LLM+ASP-based system for analyzing and repairing arguments
+Argument Debugger with Pydantic models for structured output from Gemini
 """
 
 import json
@@ -10,8 +10,49 @@ from typing import List, Dict, Optional, Tuple
 from google import genai
 from google.genai import types
 import os
+from pydantic import BaseModel, Field
 
-# Data structures
+# Pydantic models for structured output
+class ClaimModel(BaseModel):
+    id: str = Field(description="Claim identifier (e.g., c1, c2)")
+    content: str = Field(description="The actual claim text")
+    type: str = Field(description="Type of claim: premise, intermediate, or conclusion")
+
+class InferenceModel(BaseModel):
+    from_claims: List[str] = Field(description="List of claim IDs that support this inference")
+    to_claim: str = Field(description="The claim ID that this inference leads to")
+    rule_type: str = Field(description="Type of inference: deductive, inductive, causal, or definitional")
+
+class DichotomyModel(BaseModel):
+    id: str = Field(description="Claim ID presenting a dichotomy")
+    justified: bool = Field(description="True if logically exhaustive (e.g., X or not-X), false if false dichotomy")
+
+class ArgumentStructure(BaseModel):
+    """Complete structured output for argument parsing"""
+    claims: List[ClaimModel] = Field(description="List of all claims in the argument")
+    inferences: List[InferenceModel] = Field(description="List of logical connections between claims")
+    equivalences: List[List[str]] = Field(
+        default_factory=list,
+        description="Lists of claim IDs that express the same idea"
+    )
+    dichotomies: List[DichotomyModel] = Field(
+        default_factory=list,
+        description="Claims presenting either/or choices with justification status"
+    )
+    empirical_claims: List[str] = Field(
+        default_factory=list,
+        description="Claim IDs that make factual assertions requiring evidence"
+    )
+    slippery_slopes: List[str] = Field(
+        default_factory=list,
+        description="Claim IDs using slippery slope reasoning"
+    )
+    goal_claim: Optional[str] = Field(
+        default=None,
+        description="The ID of the main conclusion claim"
+    )
+
+# Data structures (keeping original for compatibility)
 @dataclass
 class Claim:
     id: str
@@ -49,8 +90,11 @@ class Repair:
 llm_model = "gemini-2.5-flash"
 llm_config = types.GenerateContentConfig(
         temperature=0.1,  # Low temperature for more deterministic outputs
-        thinking_config=types.ThinkingConfig(thinking_budget=0)
+        thinking_config=types.ThinkingConfig(thinking_budget=0),
+        response_mime_type="application/json",
+        response_schema=ArgumentStructure
 )
+
 def init_llm_client():
     gemini_api_key = os.getenv('GEMINI_API_KEY')
     google_cloud_project = os.getenv('GOOGLE_CLOUD_PROJECT')
@@ -69,14 +113,14 @@ class ArgumentParser:
         self.client = init_llm_client()
     
     def parse_argument(self, text: str) -> Argument:
-        """Extract argument structure from natural language"""
+        """Extract argument structure from natural language using structured output"""
         
         prompt = f"""
         Analyze this argument and extract its logical structure.
         
         Argument: {text}
         
-        Return a JSON with:
+        Extract:
         1. Claims: List each distinct claim with:
            - id (c1, c2, etc.)
            - content (the actual claim)
@@ -89,65 +133,24 @@ class ArgumentParser:
         
         3. Equivalences: Lists of claim IDs that express the same idea
            - Each list contains IDs of claims that are semantically equivalent
-           - Example: [["c1", "c3"]] if c1 and c3 are restatements of each other
         
         4. Dichotomies: Claims that present "either/or" choices
-           - List of objects with: id (claim id), justified (true if logically exhaustive, false if false dichotomy)
-           - Mark justified=true for: X or not-X, binary states (alive/dead), logical opposites
-           - Mark justified=false for: policy choices, most real-world scenarios with multiple options
-           - Example: [{{"id": "c1", "justified": false}}]
+           - id: claim id
+           - justified: true if logically exhaustive, false if false dichotomy
         
         5. Empirical claims: Claims that make factual assertions requiring evidence
            - List of claim IDs that need empirical support
-           - Include: statistical claims, causal relationships, historical facts, scientific assertions
-           - Exclude: definitions, logical truths, value judgments, hypotheticals
-           - Example: ["c1", "c3"] if those claims need evidence
         
         6. Slippery slopes: Claims that argue one action leads to extreme consequences
-           - List of claim IDs that use slippery slope reasoning
-           - Look for: "if X then why not Y" where Y is extreme/absurd
-           - Look for: chains of consequences without justification for each step
-           - Look for: comparisons that jump categories (humans to animals/objects, consensual to non-consensual)
-           - Example: ["c3"] if c3 says "if gay marriage, why not marry animals"
+           - List of claim IDs using slippery slope reasoning
         
         7. Goal claim: The main conclusion (if identifiable)
         
         CRITICAL INSTRUCTIONS:
-        - If there's a gap between premises and conclusion (e.g., "Crime increased. Therefore we need more police"), 
-          DO NOT create an inference. Leave the inferences list empty or incomplete to show the gap.
-        - For circular reasoning (e.g., "A is true because B. B is true because A"), create both inferences:
-          one from A to B and one from B to A.
-        - Only include inferences that are explicitly stated or directly implied by logical connectors 
-          like "because", "therefore", "since", etc.
-        - To help in detecting circular epistemic reasoning, add a presupposition inference from a reliability claim to each claim that cites that source.
-        - Mark claims as equivalent ONLY if they make essentially the same assertion.
-          For example: "Democracy is the best form of government" and "Democracy is the best system" 
-          are equivalent (both assert democracy's superiority)
-        
-        Example of missing link (no inference):
-        {{
-            "claims": [
-                {{"id": "c1", "content": "Crime rates increased", "type": "premise"}},
-                {{"id": "c2", "content": "We need more police", "type": "conclusion"}}
-            ],
-            "inferences": [],  // No connection stated!
-            "goal_claim": "c2"
-        }}
-        
-        Example of circular reasoning:
-        {{
-            "claims": [
-                {{"id": "c1", "content": "The Bible is true", "type": "premise"}},
-                {{"id": "c2", "content": "The Bible is the word of God", "type": "premise"}}
-            ],
-            "inferences": [
-                {{"from_claims": ["c2"], "to_claim": "c1", "rule_type": "deductive"}},
-                {{"from_claims": ["c1"], "to_claim": "c2", "rule_type": "deductive"}}
-            ],
-            "goal_claim": "c1"
-        }}
-        
-        Return ONLY valid JSON.
+        - If there's a gap between premises and conclusion, DO NOT create an inference
+        - For circular reasoning, create both inferences (A to B and B to A)
+        - Only include inferences that are explicitly stated or directly implied
+        - Mark claims as equivalent ONLY if they make essentially the same assertion
         """
         
         response = self.client.models.generate_content(
@@ -156,41 +159,37 @@ class ArgumentParser:
             config=llm_config
         )
         
-        # Extract JSON from response
-        json_text = response.text
-        json_start = json_text.find('{')
-        json_end = json_text.rfind('}') + 1
-        if json_start >= 0 and json_end > json_start:
-            json_text = json_text[json_start:json_end]
-        
-        data = json.loads(json_text)
+        # Parse the structured response
+        structured_data = ArgumentStructure.model_validate_json(response.text)
         
         # Convert to Argument object
-        claims = [Claim(**c) for c in data['claims']]
-        inferences = [Inference(**i) for i in data['inferences']]
+        claims = [
+            Claim(
+                id=c.id,
+                content=c.content,
+                type=c.type
+            ) for c in structured_data.claims
+        ]
         
-        # Store equivalences if provided
-        equivalences = data.get('equivalences', [])
-        
-        # Store dichotomies if provided
-        dichotomies = data.get('dichotomies', [])
-        
-        # Store empirical claims if provided
-        empirical_claims = data.get('empirical_claims', [])
-        
-        # Store slippery slopes if provided
-        slippery_slopes = data.get('slippery_slopes', [])
+        inferences = [
+            Inference(
+                from_claims=i.from_claims,
+                to_claim=i.to_claim,
+                rule_type=i.rule_type
+            ) for i in structured_data.inferences
+        ]
         
         arg = Argument(
             claims=claims,
             inferences=inferences,
-            goal_claim=data.get('goal_claim')
+            goal_claim=structured_data.goal_claim
         )
-        # Add equivalences, dichotomies, empirical_claims, and slippery_slopes as attributes (not in dataclass definition)
-        arg.equivalences = equivalences
-        arg.dichotomies = dichotomies
-        arg.empirical_claims = empirical_claims
-        arg.slippery_slopes = slippery_slopes
+        
+        # Add additional attributes
+        arg.equivalences = structured_data.equivalences
+        arg.dichotomies = [d.model_dump() for d in structured_data.dichotomies]
+        arg.empirical_claims = structured_data.empirical_claims
+        arg.slippery_slopes = structured_data.slippery_slopes
         
         return arg
 
@@ -436,8 +435,9 @@ class ASPDebugger:
         """
         
         return program
-    
-    
+
+# RepairGenerator class would remain the same as it doesn't interact with Gemini directly
+# ArgumentDebugger class would remain the same
 
 class RepairGenerator:
     """Generates and ranks repairs for identified issues"""
@@ -451,6 +451,11 @@ class RepairGenerator:
             'relevance': 0.25,
             'evidence_quality': 0.20
         }
+        # Use standard config for repair generation (not structured output)
+        self.repair_config = types.GenerateContentConfig(
+            temperature=0.1,
+            thinking_config=types.ThinkingConfig(thinking_budget=0)
+        )
     
     def generate_repairs(self, argument: Argument, issues: List[Issue]) -> List[Repair]:
         """Generate concrete repairs for each issue"""
@@ -529,7 +534,6 @@ class RepairGenerator:
                 return claim.content
         return ""
     
-    
     def _generate_bridge(self, premises: str, conclusion: str) -> str:
         """Generate a bridging premise using LLM"""
         
@@ -548,7 +552,7 @@ class RepairGenerator:
         response = self.client.models.generate_content(
             model=llm_model,
             contents=prompt,
-            config=llm_config
+            config=self.repair_config
         )
         
         return response.text.strip()
@@ -568,7 +572,7 @@ class RepairGenerator:
         response = self.client.models.generate_content(
             model=llm_model,
             contents=prompt,
-            config=llm_config
+            config=self.repair_config
         )
         
         return response.text.strip()
@@ -590,7 +594,7 @@ class RepairGenerator:
         response = self.client.models.generate_content(
             model=llm_model,
             contents=prompt,
-            config=llm_config
+            config=self.repair_config
         )
         
         return response.text.strip()
@@ -611,7 +615,7 @@ class RepairGenerator:
         response = self.client.models.generate_content(
             model=llm_model,
             contents=prompt,
-            config=llm_config
+            config=self.repair_config
         )
         
         return response.text.strip()
@@ -635,7 +639,7 @@ class RepairGenerator:
         response = self.client.models.generate_content(
             model=llm_model,
             contents=prompt,
-            config=llm_config
+            config=self.repair_config
         )
         
         return response.text.strip()
@@ -793,7 +797,7 @@ def main():
     
     args = parser.parse_args()
     
-    print("# Output")
+    print("# Output (Pydantic Version)")
     filename = args.file
     try:
         with open(filename, 'r') as f:
@@ -839,7 +843,6 @@ def main():
                     print(f"  {i}. [{repair.type}] Score: {repair.score:.2f}")
                     print(f"     {repair.description}")
                     if repair.content:
-                        #content = repair.content if len(repair.content) < 200 else repair.content[:197] + "..."
                         content = repair.content
                         print(f"     → \"{content}\"")
                     if repair.score_breakdown:
