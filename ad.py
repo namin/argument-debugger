@@ -797,7 +797,7 @@ def main():
     
     args = parser.parse_args()
     
-    print("# Output (Pydantic Version)")
+    print("# Output")
     filename = args.file
     try:
         with open(filename, 'r') as f:
