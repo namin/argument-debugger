@@ -126,14 +126,20 @@ class LogicalAnalyzer:
                 program += f'existential("{claim_id}", "{stmt.variable}", "{stmt.predicate.name}").\n'
                 
             elif stmt.predicate:  # Handle any predicate, with or without quantifier
-                # Simple predicate: P(a)
+                # Simple predicate: P(a) or P()
                 pred = stmt.predicate
-                if pred.arguments:  # Has arguments
+                if pred.arguments and any(arg for arg in pred.arguments):  # Has non-empty arguments
                     for arg in pred.arguments:
-                        if pred.negated:
-                            program += f'negated_fact("{claim_id}", "{pred.name}", "{arg}").\n'
-                        else:
-                            program += f'fact("{claim_id}", "{pred.name}", "{arg}").\n'
+                        if arg:  # Skip empty arguments
+                            if pred.negated:
+                                program += f'negated_fact("{claim_id}", "{pred.name}", "{arg}").\n'
+                            else:
+                                program += f'fact("{claim_id}", "{pred.name}", "{arg}").\n'
+                else:  # No arguments or empty arguments - propositional
+                    if pred.negated:
+                        program += f'negated_fact("{claim_id}", "{pred.name}", "true").\n'
+                    else:
+                        program += f'fact("{claim_id}", "{pred.name}", "true").\n'
                         
             elif stmt.antecedent and stmt.consequent and stmt.connective == "implies":
                 # Simple conditional (no quantifier): P → Q
@@ -217,6 +223,64 @@ quantifier_error(C1, C2, C3) :-
     fact(C3, Q, A),           % Therefore A is Q (INVALID!)
     inference_from_both(C3, C1, C2).
 
+% Detect modus tollens (valid)
+valid_modus_tollens(C1, C2, C3) :-
+    conditional(C1, P, Q),          % If P then Q
+    negated_fact(C2, Q, _),        % Not Q
+    negated_fact(C3, P, _),        % Therefore not P
+    inference_from_both(C3, C1, C2),
+    inference_pattern(C3, "modus_tollens").
+
+% Detect denying the antecedent (fallacy)
+fallacy_denying_antecedent(C1, C2, C3) :-
+    conditional(C1, P, Q),          % If P then Q
+    negated_fact(C2, P, _),        % Not P
+    negated_fact(C3, Q, _),        % Therefore not Q (INVALID!)
+    inference_from_both(C3, C1, C2).
+
+% Detect disjunctive syllogism (valid)
+valid_disjunctive_syllogism(C1, C2, C3) :-
+    disjunction(C1, P, Q),         % P or Q
+    negated_fact(C2, P, _),        % Not P
+    fact(C3, Q, _),                % Therefore Q
+    inference_from_both(C3, C1, C2),
+    inference_pattern(C3, "disjunctive_syllogism").
+
+% Detect hypothetical syllogism (valid)
+valid_hypothetical_syllogism(C1, C2, C3) :-
+    conditional(C1, P, Q),          % If P then Q
+    conditional(C2, Q, R),          % If Q then R
+    conditional(C3, P, R),          % Therefore if P then R
+    inference_from_both(C3, C1, C2),
+    inference_pattern(C3, "hypothetical_syllogism").
+
+% Detect existential generalization (valid)
+valid_existential_generalization(C1, C2) :-
+    fact(C1, P, Instance),          % P(a)
+    existential(C2, X, P),          % Therefore ∃x P(x)
+    inference_from(C2, C1),
+    inference_pattern(C2, "existential_generalization").
+
+% Detect hasty generalization (fallacy - from single instance to universal)
+fallacy_hasty_generalization(C1, C2) :-
+    fact(C1, P, Instance),          % P(a) - single instance
+    universal_conditional(C2, X, P, Q),  % Therefore ∀x P(x) (INVALID!)
+    inference_from(C2, C1).
+
+% Detect composition fallacy
+fallacy_composition(C1, C2, C3) :-
+    fact(C1, "part_of", Part, Whole),   % X is part of Y
+    fact(C2, Property, Part),           % X has property P
+    fact(C3, Property, Whole),          % Therefore Y has property P (INVALID!)
+    inference_from_both(C3, C1, C2).
+
+% Detect division fallacy
+fallacy_division(C1, C2, C3) :-
+    fact(C1, "part_of", Part, Whole),   % X is part of Y
+    fact(C2, Property, Whole),          % Y has property P
+    fact(C3, Property, Part),           % Therefore X has property P (INVALID!)
+    inference_from_both(C3, C1, C2).
+
 % Check for missing logical steps
 missing_step(To) :-
     inference_pattern(To, Pattern),
@@ -229,6 +293,14 @@ missing_step(To) :-
 #show missing_step/1.
 #show valid_barbara/3.
 #show valid_universal_instantiation/3.
+#show valid_modus_tollens/3.
+#show fallacy_denying_antecedent/3.
+#show valid_disjunctive_syllogism/3.
+#show valid_hypothetical_syllogism/3.
+#show valid_existential_generalization/2.
+#show fallacy_hasty_generalization/2.
+#show fallacy_composition/3.
+#show fallacy_division/3.
         """
         
         return program
@@ -302,6 +374,52 @@ missing_step(To) :-
                         valid_inferences.append({
                             "type": "valid_universal_instantiation",
                             "description": f"Valid universal instantiation: [{c1}, {c2}] → {c3}"
+                        })
+                    
+                    elif atom.name == "valid_modus_tollens":
+                        c1 = str(atom.arguments[0]).strip('"')
+                        c2 = str(atom.arguments[1]).strip('"')
+                        c3 = str(atom.arguments[2]).strip('"')
+                        valid_inferences.append({
+                            "type": "valid_modus_tollens",
+                            "description": f"Valid modus tollens: [{c1}, {c2}] → {c3}"
+                        })
+                    
+                    elif atom.name == "fallacy_denying_antecedent":
+                        c1 = str(atom.arguments[0]).strip('"')
+                        c2 = str(atom.arguments[1]).strip('"')
+                        c3 = str(atom.arguments[2]).strip('"')
+                        issues.append({
+                            "type": "denying_antecedent",
+                            "description": f"Fallacy of denying the antecedent: [{c1}, {c2}] → {c3}",
+                            "claims": [c1, c2, c3]
+                        })
+                    
+                    elif atom.name == "valid_disjunctive_syllogism":
+                        c1 = str(atom.arguments[0]).strip('"')
+                        c2 = str(atom.arguments[1]).strip('"')
+                        c3 = str(atom.arguments[2]).strip('"')
+                        valid_inferences.append({
+                            "type": "valid_disjunctive_syllogism",
+                            "description": f"Valid disjunctive syllogism: [{c1}, {c2}] → {c3}"
+                        })
+                    
+                    elif atom.name == "valid_hypothetical_syllogism":
+                        c1 = str(atom.arguments[0]).strip('"')
+                        c2 = str(atom.arguments[1]).strip('"')
+                        c3 = str(atom.arguments[2]).strip('"')
+                        valid_inferences.append({
+                            "type": "valid_hypothetical_syllogism",
+                            "description": f"Valid hypothetical syllogism: [{c1}, {c2}] → {c3}"
+                        })
+                    
+                    elif atom.name == "fallacy_hasty_generalization":
+                        c1 = str(atom.arguments[0]).strip('"')
+                        c2 = str(atom.arguments[1]).strip('"')
+                        issues.append({
+                            "type": "hasty_generalization",
+                            "description": f"Hasty generalization from single instance: {c1} → {c2}",
+                            "claims": [c1, c2]
                         })
                 
                 # Only take first model

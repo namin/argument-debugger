@@ -1,0 +1,52 @@
+All birds can fly.
+Penguins are birds.
+Therefore, penguins can fly.
+
+If it rains, the ground gets wet.
+The ground is wet.
+Therefore, it rained.
+
+If you study hard, you will pass.
+You didn't pass.
+Therefore, you didn't study hard.
+
+Some students are athletes.
+John is a student.
+Therefore, John is an athlete.
+
+All mammals are animals.
+All dogs are mammals.
+Therefore, all dogs are animals.
+
+If you have a ticket, you can enter.
+You don't have a ticket.
+Therefore, you can't enter.
+
+Either the battery is dead or the alternator is broken.
+The battery is not dead.
+Therefore, the alternator is broken.
+
+If it's sunny, I'll go to the beach.
+If I go to the beach, I'll swim.
+Therefore, if it's sunny, I'll swim.
+
+My car is red.
+Therefore, some cars are red.
+
+This swan is white.
+Therefore, all swans are white.
+
+Each atom in this molecule is light.
+Therefore, the molecule is light.
+
+The United States is powerful.
+Texas is part of the United States.
+Therefore, Texas is powerful.
+
+If you exercise regularly, you'll be healthy.
+You're healthy.
+Therefore, you exercise regularly.
+
+All philosophers are thinkers.
+All thinkers question assumptions.
+Therefore, all philosophers question assumptions.
