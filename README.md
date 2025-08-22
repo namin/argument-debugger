@@ -137,4 +137,5 @@ The test framework handles LLM non-determinism by checking issue types rather th
 - [International Competition on Computational Models of Argumentation (ICCMA)](https://www.argumentationcompetition.org/)
 - [ArgDown](https://argdown.org/)
 - [Argunauts: Open LLMs that Master Argument Analysis with Argdown](https://huggingface.co/blog/ggbetz/argunauts-intro)
+- [NL2FOL](https://github.com/lovishchopra/NL2FOL): Translating Natural Language to First-Order Logic for Logical Fallacy Detection
 
