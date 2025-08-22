@@ -48,6 +48,7 @@ class Repair:
 
 llm_model = "gemini-2.5-flash"
 llm_config = types.GenerateContentConfig(
+        temperature=0.1,  # Low temperature for more deterministic outputs
         thinking_config=types.ThinkingConfig(thinking_budget=0)
 )
 def init_llm_client():
