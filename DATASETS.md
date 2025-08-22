@@ -1,5 +1,9 @@
 # Datasets
 
+- FOLIO: Natural Language Reasoning with First-Order Logic
+  - https://arxiv.org/pdf/2209.00840
+  - https://huggingface.co/datasets/yale-nlp/FOLIO
+
 - OpenDebateEvidence: A Massive-Scale Argument Mining and Summarization Dataset (2024)
   - https://arxiv.org/abs/2406.14657
   - [`datasets/opendebate.py`](datasets/opendebate.py): converts the dataset to summary samples for Argument Debugger
