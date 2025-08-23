@@ -75,8 +75,9 @@ Show Remaining Issues
 
 - **ArgumentDebugger**: Orchestrates the full pipeline
 
-## Other Experiments
+## Entry Points
 
+- [ad.py](ad.py): main experiment.
 - [ad_baseline.py](ad_baseline.py): a whole-LLM baseline from a single prompt to issue detection. Compatible with tests.
 - [ad_debate.py](ad_debate.py): analyzes the debate frontier.
 - [logical_form.py](logical_form.py): encoding to First-Order Logic (FOL), with detecting using ASP and certification in Lean. See dedicated [tutorial](TUTORIAL_FOL.md).
