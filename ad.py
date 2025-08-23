@@ -43,6 +43,10 @@ class ArgumentStructure(BaseModel):
         default_factory=list,
         description="Claim IDs that make factual assertions requiring evidence"
     )
+    self_evident_claims: List[str] = Field(
+        default_factory=list,
+        description="Claim IDs that are widely accepted background facts that do not require evidence in this context"
+    )
     slippery_slopes: List[str] = Field(
         default_factory=list,
         description="Claim IDs using slippery slope reasoning"
@@ -142,10 +146,13 @@ class ArgumentParser:
         5. Empirical claims: Claims that make factual assertions requiring evidence
            - List of claim IDs that need empirical support
         
-        6. Slippery slopes: Claims that argue one action leads to extreme consequences
+        6. Self-evident claims: Claims that are widely accepted background facts that do not require evidence in this context
+           - List of claim IDs that are self-evident
+        
+        7. Slippery slopes: Claims that argue one action leads to extreme consequences
            - List of claim IDs using slippery slope reasoning
         
-        7. Goal claim: The main conclusion (if identifiable)
+        8. Goal claim: The main conclusion (if identifiable)
         
         CRITICAL INSTRUCTIONS:
         - DO NOT split disjunctions like "Either A or B" into separate A and B claims
@@ -192,6 +199,7 @@ class ArgumentParser:
         arg.equivalences = structured_data.equivalences
         arg.dichotomies = [d.model_dump() for d in structured_data.dichotomies]
         arg.empirical_claims = structured_data.empirical_claims
+        arg.self_evident_claims = structured_data.self_evident_claims
         arg.slippery_slopes = structured_data.slippery_slopes
         
         return arg
@@ -337,6 +345,12 @@ class ASPDebugger:
             for claim_id in argument.empirical_claims:
                 program += f'empirical_claim("{claim_id}").\n'
         
+        # Add self-evident claims identified by parser
+        if hasattr(argument, 'self_evident_claims') and argument.self_evident_claims:
+            program += "\n% Self-evident claims (LLM judgement)\n"
+            for cid in argument.self_evident_claims:
+                program += f'self_evident("{cid}").\n'
+
         # Add facts about dichotomous claims from parser
         if hasattr(argument, 'dichotomies') and argument.dichotomies:
             program += "\n% Dichotomies identified by parser\n"
@@ -494,18 +508,21 @@ class RepairGenerator:
             thinking_config=types.ThinkingConfig(thinking_budget=0)
         )
     
-    def generate_repair(self, argument_text: str, argument: Argument, issues: List[Issue]) -> Tuple[Optional[str], List[Issue]]:
-        """Generate repair text"""
+    def generate_repair(self, argument_text: str, argument: Argument, issues: List[Issue]) -> Tuple[Optional[str], Optional[str]]:
+        """Generate repair text and cleaned argument"""
         
         if not issues:
-            return None, []
+            return None, None
         
-        # Generate repair text
-        repair = self._generate_repair_text(argument, issues)
-        if not repair:
-            return None
+        # Generate repair text with commentary
+        repair_commentary = self._generate_repair_text(argument, issues)
+        if not repair_commentary:
+            return None, None
         
-        return repair
+        # Generate a clean rewritten argument
+        clean_argument = self._generate_clean_argument(argument_text, repair_commentary)
+        
+        return repair_commentary, clean_argument
     
     def _generate_repair_text(self, argument: Argument, issues: List[Issue]) -> Optional[str]:
         """Generate text that addresses the issues"""
@@ -554,6 +571,31 @@ Write additional statements that resolve the issues. Be concise and direct.
             return None
         
         return repair_text
+    
+    def _generate_clean_argument(self, original_text: str, repair_commentary: str) -> str:
+        """Generate a clean, integrated argument from original and repair"""
+        
+        prompt = f"""
+Given this original argument:
+{original_text}
+
+And this repair commentary:
+{repair_commentary}
+
+Generate a clean, integrated argument that incorporates the repairs.
+Write ONLY the argument itself as a series of clear statements.
+Do not include any headers, explanations, or formatting.
+Each statement should be a complete sentence.
+Connect the statements naturally to form a coherent argument.
+"""
+        
+        response = self.client.models.generate_content(
+            model=llm_model,
+            contents=prompt,
+            config=self.config
+        )
+        
+        return response.text.strip()
     
     def _get_claim_content(self, argument: Argument, claim_id: str) -> str:
         """Get claim content by ID"""
@@ -610,16 +652,17 @@ class ArgumentDebugger:
         # 3. Generate and apply repair if requested
         if apply_repair and issues:
             print(f"\n🔧 GENERATING REPAIR...")
-            repair = self.repairer.generate_repair(argument_text, argument, issues)
+            repair_commentary, clean_argument = self.repairer.generate_repair(argument_text, argument, issues)
             
-            if repair:
-                print("\nAPPLYING:")
-                print(f"Added text: \"{repair}\"")
+            if repair_commentary and clean_argument:
+                print("\nREPAIR COMMENTARY:")
+                print(repair_commentary)
                 
-                repaired_argument_text = f"{argument_text}\n{repair}"
+                print("\nCLEAN ARGUMENT:")
+                print(clean_argument)
 
                 print("\nParsing repaired argument...")
-                repaired_argument = self.parser.parse_argument(repaired_argument_text)
+                repaired_argument = self.parser.parse_argument(clean_argument)
                 
                 self._print_structure(repaired_argument)
                 
@@ -632,7 +675,8 @@ class ArgumentDebugger:
                 return {
                     "argument": argument,
                     "issues": issues,
-                    "repair": repair,
+                    "repair_commentary": repair_commentary,
+                    "clean_argument": clean_argument,
                     "modified_argument": repaired_argument,
                     "remaining_issues": remaining_issues
                 }
