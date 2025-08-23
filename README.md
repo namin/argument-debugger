@@ -44,11 +44,11 @@ Formal Structure (claims, inferences)
          ↓
 List of Issues (missing_link, circular, etc.)
          ↓
-[3. RepairGenerator] → LLM generates repairs for each issue
+[3. RepairGenerator] → LLM generates a comprehensive repair
          ↓
-[4. Repair Ranking] → Scores each repair
+Apply Repair & Re-analyze
          ↓
-Ranked Repairs
+Show Remaining Issues
 ```
 
 ### Component Details
@@ -65,12 +65,11 @@ Ranked Repairs
   - Detects false dichotomies
   - Checks goal reachability
 
-- **RepairGenerator**: Uses LLM to suggest and rank concrete fixes
-  - Generates bridging premises for missing links
-  - Suggests supporting evidence for unsupported claims
-  - Recommends removing circular dependencies
-  - Proposes alternative options for false dichotomies
-  - Ranks repairs by minimality, plausibility, relevance, and evidence quality
+- **RepairGenerator**: Uses LLM to generate comprehensive fixes
+  - Generates a repair attempting to address all issues
+  - Adds new premises to bridge logical gaps
+  - Provides supporting evidence for unsupported claims
+  - Re-analyzes after repair to show what remains unfixed
 
 - **ArgumentDebugger**: Orchestrates the full pipeline
 
