@@ -6,7 +6,7 @@ FOL representation uses plain dataclasses instead of Pydantic for recursive stru
 
 import clingo
 from logical_form_core import lf_to_core
-from lean_bridge import verify_with_lean, verify_ui_with_lean, Subgoal
+from lean_bridge import Subgoal, verify_with_lean, verify_ui_with_lean, verify_mt_with_lean, verify_all_chain_with_lean
 from ad import init_llm_client
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Literal, Union
@@ -548,6 +548,65 @@ def fully_verify_with_lean(argument: LogicalArgument) -> Dict:
             if note and not ok:
                 print("    note:", note.splitlines()[0])
 
+        for inf in argument.inferences:
+            if inf.pattern != "modus_tollens":
+                continue
+            s_imp = next((s for s in argument.statements if s.id in inf.from_ids and s.formula.type == "implies"), None)
+            s_negQ = next((s for s in argument.statements if s.id in inf.from_ids and s is not s_imp), None)
+            s_goal = next((s for s in argument.statements if s.id == inf.to_id), None)
+
+            ok = False; artifact = None; note = ""
+            if s_imp and s_negQ and s_goal:
+                L, R = s_imp.formula.left, s_imp.formula.right
+                if (L and R and L.type == "atom" and R.type == "atom" and
+                    s_negQ.formula.type == "not" and s_negQ.formula.left and s_negQ.formula.left.type == "atom" and
+                    s_goal.formula.type == "not" and s_goal.formula.left and s_goal.formula.left.type == "atom" and
+                    not L.atom.terms and not R.atom.terms and
+                    not s_negQ.formula.left.atom.terms and not s_goal.formula.left.atom.terms and
+                    s_negQ.formula.left.atom.predicate == R.atom.predicate and
+                    s_goal.formula.left.atom.predicate == L.atom.predicate):
+                    ok, artifact, note = verify_mt_with_lean(L.atom.predicate, R.atom.predicate, name=f"mt_{inf.to_id}")
+                else:
+                    note = "non-propositional MT; skipping"
+            else:
+                note = "could not line up MT components"
+            print(f"  MT {inf.from_ids} → {inf.to_id}: {'Verified ✅' if ok else 'Not verified ❌'}")
+            if artifact: print(f"    artifact: {artifact}")
+            if note and not ok: print("    note:", note.splitlines()[0])
+
+        for inf in argument.inferences:
+            if inf.pattern != "hypothetical_syllogism":
+                continue
+            s1 = next((s for s in argument.statements if s.id in inf.from_ids and s.formula.type == "forall"), None)
+            s2 = next((s for s in argument.statements if s.id in inf.from_ids and s.formula.type == "forall" and s is not s1), None)
+            s3 = next((s for s in argument.statements if s.id == inf.to_id and s.formula.type == "forall"), None)
+
+            ok = False; artifact = None; note = ""
+            if s1 and s2 and s3:
+                def parse_imp(s):
+                    b = s.formula.body
+                    return (b.left, b.right) if b and b.type == "implies" else (None, None)
+                L1, R1 = parse_imp(s1); L2, R2 = parse_imp(s2); L3, R3 = parse_imp(s3)
+                if all([L1, R1, L2, R2, L3, R3]) and \
+                all(x.type == "atom" and len(x.atom.terms) == 1 for x in [L1, R1, L2, R2, L3, R3]):
+                    if R1.atom.predicate == L2.atom.predicate and \
+                    L1.atom.predicate == L3.atom.predicate and \
+                    R2.atom.predicate == R3.atom.predicate:
+                        ok, artifact, note = verify_all_chain_with_lean(
+                            L1.atom.predicate, R1.atom.predicate, R2.atom.predicate,
+                            name=f"all_chain_{inf.to_id}"
+                        )
+                    else:
+                        note = "predicate mismatch in ∀-chain"
+                else:
+                    note = "expected unary predicate implications under ∀"
+            else:
+                note = "could not line up ∀-chain components"
+
+            print(f"  ∀-chain {inf.from_ids} → {inf.to_id}: {'Verified ✅' if ok else 'Not verified ❌'}")
+            if artifact: print(f"    artifact: {artifact}")
+            if note and not ok: print("    note:", note.splitlines()[0])
+            
         if not ran_any_check:
             print("  (nothing to verify for this example)")
 
@@ -597,7 +656,7 @@ def main():
         examples_to_run = enumerate(examples, 1)
     
     for i, arg_text in examples_to_run:
-        print(f"# EXAMPLE {i}\n{arg_text}\n")
+        print(f"\n# EXAMPLE {i}\n{arg_text}\n")
         
         try:
             result, argument = analyzer.debug_argument(arg_text)
@@ -618,8 +677,6 @@ def main():
             if args.lean:
                 print("\nVerifying with Lean...")
                 fully_verify_with_lean(argument)
-
-            print("\n")
 
         except Exception as e:
             print(f"Error: {e}")

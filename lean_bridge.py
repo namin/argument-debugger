@@ -251,6 +251,66 @@ theorem {thm} (h : forall x : T, {P} x -> {Q} x) (hp : {P} {c}) : {Q} {c} :=
     except FileNotFoundError:
         return False, lean_path, "Lean executable not found on PATH"
 
+def verify_mt_with_lean(p_name: str = "P", q_name: str = "Q",
+                        name: str = "mt_check", lean_cmd: str = "lean"):
+    import tempfile, os, subprocess
+    def m(s: str):
+        out = "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in s)
+        if not out: out = "X"
+        if out[0].isdigit(): out = "_" + out
+        return out
+    P, Q, thm = m(p_name), m(q_name), m(name)
+    code = f"""\
+/- Auto-generated Modus Tollens check -/
+axiom {P} : Prop
+axiom {Q} : Prop
+
+theorem {thm} (hPQ : {P} -> {Q}) (hnQ : {Q} -> False) : {P} -> False :=
+  fun hP => hnQ (hPQ hP)
+"""
+    tmp = tempfile.mkdtemp(prefix="argdb_lean_mt_")
+    path = os.path.join(tmp, f"{thm}.lean")
+    with open(path, "w", encoding="utf-8") as f: f.write(code)
+    try:
+        proc = subprocess.run([lean_cmd, path], capture_output=True, text=True)
+        ok = (proc.returncode == 0)
+        msg = proc.stdout if ok else (proc.stdout + "\n" + proc.stderr)
+        return ok, path, msg
+    except FileNotFoundError:
+        return False, path, "Lean executable not found on PATH"
+
+def verify_all_chain_with_lean(pred_A: str, pred_B: str, pred_C: str,
+                               name: str = "all_chain", lean_cmd: str = "lean"):
+    import tempfile, os, subprocess
+    def m(s: str):
+        out = "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in s)
+        if not out: out = "X"
+        if out[0].isdigit(): out = "_" + out
+        return out
+    A, B, C, thm = m(pred_A), m(pred_B), m(pred_C), m(name)
+    code = f"""\
+/- Auto-generated ∀-chain check (A -> B, B -> C ⊢ A -> C) -/
+axiom T : Type
+axiom {A} : T -> Prop
+axiom {B} : T -> Prop
+axiom {C} : T -> Prop
+
+theorem {thm} (h1 : forall x : T, {A} x -> {B} x)
+              (h2 : forall x : T, {B} x -> {C} x) :
+              forall x : T, {A} x -> {C} x :=
+  fun x hx => h2 x (h1 x hx)
+"""
+    tmp = tempfile.mkdtemp(prefix="argdb_lean_all_")
+    path = os.path.join(tmp, f"{thm}.lean")
+    with open(path, "w", encoding="utf-8") as f: f.write(code)
+    try:
+        proc = subprocess.run([lean_cmd, path], capture_output=True, text=True)
+        ok = (proc.returncode == 0)
+        msg = proc.stdout if ok else (proc.stdout + "\n" + proc.stderr)
+        return ok, path, msg
+    except FileNotFoundError:
+        return False, path, "Lean executable not found on PATH"
+
 if __name__ == "__main__":
     # Toy example: P → Q, Q → R, P ⊢ R
     sg = Subgoal(
