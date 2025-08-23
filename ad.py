@@ -104,7 +104,7 @@ def init_llm_client():
     elif google_cloud_project:
         return genai.Client(vertexai=True, project=google_cloud_project, location=google_cloud_location)
     else:
-        raise ValueError("Gemini configuration required. Set GEMINI_API_KEY or GOOGLE_PROUD_PROJECT environment variables.")
+        raise ValueError("Gemini configuration required. Set GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT environment variables.")
 
 class ArgumentParser:
     """Uses language model to parse natural language arguments into formal structure"""
