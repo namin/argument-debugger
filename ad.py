@@ -140,8 +140,9 @@ class ArgumentParser:
            - Each list contains IDs of claims that are semantically equivalent
         
         4. Dichotomies: Claims that present "either/or" choices
-           - id: claim id of the disjunction itself
-           - justified: true if logically exhaustive, false if false dichotomy
+           - IMPORTANT: Any claim containing "Either...or..." should be identified as a dichotomy
+           - id: claim id of the disjunction itself (the claim containing "either/or")
+           - justified: true if logically exhaustive (like "X or not-X"), false if false dichotomy (when more options exist)
         
         5. Empirical claims: Claims that make factual assertions requiring evidence
            - List of claim IDs that need empirical support
@@ -157,6 +158,7 @@ class ArgumentParser:
         CRITICAL INSTRUCTIONS:
         - DO NOT split disjunctions like "Either A or B" into separate A and B claims
         - DO NOT split compound reasons unless they serve different logical roles
+        - ALWAYS identify claims containing "Either...or..." as dichotomies and analyze if they're justified
         - If there's a gap between premises and conclusion, DO NOT create an inference
         - For circular reasoning, create both inferences (A to B and B to A)
         - Only include inferences that are explicitly stated or directly implied
