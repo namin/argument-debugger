@@ -5,6 +5,8 @@ FOL representation uses plain dataclasses instead of Pydantic for recursive stru
 """
 
 import clingo
+from logical_form_core import lf_to_core
+from lean_bridge import verify_with_lean, verify_ui_with_lean, Subgoal
 from ad import init_llm_client
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Literal, Union
@@ -459,7 +461,7 @@ invalid_inference(To, "hasty_generalization") :-
         
         print("Extracting logical form...")
         argument = self.extract_logical_form(argument_text)
-        
+
         print("\nLogical Structure:")
         for stmt in argument.statements:
             print(f"  {stmt.id}: {stmt.formula.to_string()}")
@@ -470,8 +472,87 @@ invalid_inference(To, "hasty_generalization") :-
         
         print("\nAnalyzing with ASP...")
         result = self.analyze(argument)
-        
-        return result
+    
+        return result, argument
+
+def fully_verify_with_lean(argument: LogicalArgument) -> Dict:
+    try:
+        ran_any_check = False
+        print("\nLean micro‑verification:")
+
+        # (A) Propositional chain check — only if there are actual edges
+        core = lf_to_core(argument)
+        if core.implications and core.facts:
+            ran_any_check = True
+            for g in (core.goals or []):
+                sg = Subgoal(
+                    atoms=core.atoms,
+                    implications=core.implications,
+                    facts=core.facts,
+                    goal=g,
+                    name=f"lf_{g}"
+                )
+                res = verify_with_lean(sg)
+                print(f"  chain goal={g}: {'Verified ✅' if res.verified else 'Not verified ❌'}")
+                if res.lean_file:
+                    print(f"    artifact: {res.lean_file}")
+                if not res.verified and res.message:
+                    print("    note:", res.message.splitlines()[0])
+        # else: stay silent (no “Not verified” noise when there is nothing to check)
+
+        # (B) Universal Instantiation checks (first‑order)
+        ui_checks = 0
+        for inf in argument.inferences:
+            if inf.pattern != "universal_instantiation":
+                continue
+            ui_checks += 1
+            ran_any_check = True
+
+            s_forall = next((s for s in argument.statements
+                                if s.id in inf.from_ids and s.formula.type == "forall"), None)
+            s_other  = next((s for s in argument.statements
+                                if s.id in inf.from_ids and s is not s_forall), None)
+            s_goal   = next((s for s in argument.statements if s.id == inf.to_id), None)
+
+            ok = False; artifact = None; note = ""
+            if s_forall and s_other and s_goal:
+                body = s_forall.formula.body
+                if body and body.type == "implies" and body.left and body.right:
+                    L, R = body.left, body.right
+                    if (L.type == "atom" and R.type == "atom" and
+                        s_other.formula.type == "atom" and s_goal.formula.type == "atom"):
+                        # Require unary predicates and matching constant
+                        if len(L.atom.terms) == 1 and len(R.atom.terms) == 1 \
+                            and len(s_other.formula.atom.terms) == 1 \
+                            and len(s_goal.formula.atom.terms) == 1:
+                            const = s_other.formula.atom.terms[0]
+                            if s_goal.formula.atom.terms[0] == const:
+                                ok, artifact, note = verify_ui_with_lean(
+                                    L.atom.predicate, R.atom.predicate, const,
+                                    name=f"ui_{inf.to_id}"
+                                )
+                            else:
+                                note = "goal constant doesn’t match premise constant"
+                        else:
+                            note = "non‑unary predicates; UI check skipped"
+                    else:
+                        note = "expected atomic predicates in ∀x (P x -> Q x)"
+                else:
+                    note = "∀ body is not an implication"
+            else:
+                note = "couldn’t line up ∀, instance premise, and goal"
+
+            print(f"  UI {inf.from_ids} → {inf.to_id}: {'Verified ✅' if ok else 'Not verified ❌'}")
+            if artifact:
+                print(f"    artifact: {artifact}")
+            if note and not ok:
+                print("    note:", note.splitlines()[0])
+
+        if not ran_any_check:
+            print("  (nothing to verify for this example)")
+
+    except Exception as e:
+        print(f"\nLean micro‑verification error: {e}")
 
 def main():
     """Test the logical form analyzer V3"""
@@ -480,6 +561,7 @@ def main():
     parser = argparse.ArgumentParser(description='Logical Form Analyzer')
     parser.add_argument('file', nargs='?', default='examples_logical_form.txt',
                        help='Input file containing arguments (default: examples_logical_form.txt)')
+    parser.add_argument('--lean', action='store_true', help='Verify with Lean')
     parser.add_argument('--debug', action='store_true', help='Show ASP program and debug output')
     parser.add_argument('--example', type=int, help='Run a specific example (1-based index)')
     args = parser.parse_args()
@@ -515,12 +597,10 @@ def main():
         examples_to_run = enumerate(examples, 1)
     
     for i, arg_text in examples_to_run:
-        print(f"\n{'='*60}")
-        print(f"EXAMPLE {i}: {arg_text}")
-        print('='*60)
+        print(f"# EXAMPLE {i}\n{arg_text}\n")
         
         try:
-            result = analyzer.debug_argument(arg_text)
+            result, argument = analyzer.debug_argument(arg_text)
             
             if result['issues']:
                 print("\n❌ LOGICAL ISSUES FOUND:")
@@ -534,7 +614,13 @@ def main():
             
             if not result['issues'] and not result['valid_inferences']:
                 print("\n⚠️ No formal logical patterns detected")
-                
+
+            if args.lean:
+                print("\nVerifying with Lean...")
+                fully_verify_with_lean(argument)
+
+            print("\n")
+
         except Exception as e:
             print(f"Error: {e}")
             if args.debug:
