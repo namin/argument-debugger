@@ -118,10 +118,21 @@ class ArgumentParser:
         
         Argument: {text}
         
+        PARSING RULES:
+        1. DO NOT over-decompose claims:
+           - "Either A or B" is ONE claim (a disjunction), not three separate claims
+           - "A because B, C, and D" means B, C, and D together form ONE compound premise supporting A
+           - Only split into multiple claims when there are clear sentence boundaries or explicit logical steps
+        
+        2. Respect natural argument chunking:
+           - One sentence typically = one claim (unless it contains "therefore", "because", etc.)
+           - Lists of reasons that support the same conclusion should usually be kept as one compound premise
+           - Only separate premises if they independently support different things
+        
         Extract:
         1. Claims: List each distinct claim with:
            - id (c1, c2, etc.)
-           - content (the actual claim)
+           - content (the actual claim, preserving disjunctions and compound statements)
            - type (premise/intermediate/conclusion)
         
         2. Inferences: How claims connect:
@@ -133,7 +144,7 @@ class ArgumentParser:
            - Each list contains IDs of claims that are semantically equivalent
         
         4. Dichotomies: Claims that present "either/or" choices
-           - id: claim id
+           - id: claim id of the disjunction itself
            - justified: true if logically exhaustive, false if false dichotomy
         
         5. Empirical claims: Claims that make factual assertions requiring evidence
@@ -145,6 +156,8 @@ class ArgumentParser:
         7. Goal claim: The main conclusion (if identifiable)
         
         CRITICAL INSTRUCTIONS:
+        - DO NOT split disjunctions like "Either A or B" into separate A and B claims
+        - DO NOT split compound reasons unless they serve different logical roles
         - If there's a gap between premises and conclusion, DO NOT create an inference
         - For circular reasoning, create both inferences (A to B and B to A)
         - Only include inferences that are explicitly stated or directly implied
