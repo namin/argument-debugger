@@ -685,7 +685,7 @@ class ArgumentDebugger:
                 print("\nAPPLYING:")
                 if repair.additions:
                     for addition in repair.additions:
-                        print(f"  ADD: \"{addition}\"")
+                        print(f"-  ADD: \"{addition}\"")
                 
                 # Apply repair and show full analysis again
                 modified_arg = self.repairer._apply_repair(repair, argument)
