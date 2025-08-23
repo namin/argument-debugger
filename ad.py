@@ -86,13 +86,6 @@ class Repair:
     additions: Optional[List[str]] = None  # New premises to add
 
 llm_model = "gemini-2.5-flash"
-llm_config = types.GenerateContentConfig(
-        temperature=0.1,  # Low temperature for more deterministic outputs
-        thinking_config=types.ThinkingConfig(thinking_budget=0),
-        response_mime_type="application/json",
-        response_schema=ArgumentStructure
-)
-
 def init_llm_client():
     gemini_api_key = os.getenv('GEMINI_API_KEY')
     google_cloud_project = os.getenv('GOOGLE_CLOUD_PROJECT')
@@ -109,6 +102,12 @@ class ArgumentParser:
     
     def __init__(self):
         self.client = init_llm_client()
+        self.config = types.GenerateContentConfig(
+            temperature=0.1,  # Low temperature for more deterministic outputs
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+            response_mime_type="application/json",
+            response_schema=ArgumentStructure
+        )
     
     def parse_argument(self, text: str) -> Argument:
         """Extract argument structure from natural language using structured output"""
@@ -167,7 +166,7 @@ class ArgumentParser:
         response = self.client.models.generate_content(
             model=llm_model,
             contents=prompt,
-            config=llm_config
+            config=self.config
         )
         
         # Parse the structured response
@@ -398,9 +397,19 @@ class ASPDebugger:
             not supported(C).
         
         % Find unsupported empirical premises
+        % But be smart about depth - don't flag empirical claims that have empirical evidence
+        
+        % An empirical claim has empirical support if another empirical claim infers to it
+        has_empirical_support(C) :-
+            empirical_claim(C),
+            inference(Support, C),
+            empirical_claim(Support).
+        
+        % Only flag empirical claims that don't have empirical support
         unsupported_premise(C) :- 
             claim(C, "premise"),
-            empirical_claim(C).
+            empirical_claim(C),
+            not has_empirical_support(C).
         
         % Detect circular reasoning with equivalences
         % Standard dependencies
@@ -456,8 +465,7 @@ class RepairGenerator:
     def __init__(self, debug: bool = False):
         self.client = init_llm_client()
         self.debug = debug
-        # Config for repair generation
-        self.repair_config = types.GenerateContentConfig(
+        self.config = types.GenerateContentConfig(
             temperature=0.1,
             thinking_config=types.ThinkingConfig(thinking_budget=0)
         )
@@ -503,7 +511,7 @@ Respond with just the addition(s), one per line. No explanation.
         response = self.client.models.generate_content(
             model=llm_model,
             contents=prompt,
-            config=self.repair_config
+            config=self.config
         )
         
         repair_text = response.text.strip()
