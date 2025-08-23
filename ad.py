@@ -389,19 +389,50 @@ class ASPDebugger:
             has_inference(C),
             not supported(C).
         
-        % Find unsupported empirical premises
-        % But be smart about depth - don't flag empirical claims that have empirical evidence
-        
-        % An empirical claim has empirical support if another empirical claim infers to it
+        % --- Balanced unsupported empirical premise rules ---
+
+        % Relevance: only premises that contribute to a conclusion or the goal are worth flagging
+        relevant_premise(C) :-
+            goal(G),
+            supports(C, G).
+        relevant_premise(C) :-
+            supports(C, K),
+            claim(K, "conclusion").
+
+        % Empirical support may be:
+        %  (a) direct: empirical -> C
+        %  (b) transitive: chain of empirical claims leading to C
+        %  (c) via equivalence: support transfers across equivalent claims
+        %  (d) OPTIONAL: explicitly marked by the parser/LLM (has_citation/1 or justified_empirically/1)
+
+        emp_support_link(S, C) :-
+            empirical_claim(S),
+            inference(S, C).
+
+        emp_support_link(S, C) :-
+            empirical_claim(S),
+            inference(S, Y),
+            emp_support_link(Y, C).
+
+        % support carries across equivalences in either direction
+        emp_support_link(S, C) :-
+            emp_support_link(S, E),
+            equivalent(E, C).
+
         has_empirical_support(C) :-
             empirical_claim(C),
-            inference(Support, C),
-            empirical_claim(Support).
-        
-        % Only flag empirical claims that don't have empirical support
-        unsupported_premise(C) :- 
+            emp_support_link(_, C).
+
+        % OPTIONAL LLM-provided facts (safe to omit; they simply won't fire if absent)
+        has_empirical_support(C) :- justified_empirically(C).
+        has_empirical_support(C) :- has_citation(C).
+
+        % Only flag relevant empirical premises that are not marked self-evident and lack support
+        unsupported_premise(C) :-
             claim(C, "premise"),
             empirical_claim(C),
+            relevant_premise(C),
+            not self_evident(C),   % OPTIONAL LLM-provided fact; ignored if absent
             not has_empirical_support(C).
         
         % Detect circular reasoning with equivalences
