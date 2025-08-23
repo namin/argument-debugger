@@ -12,6 +12,24 @@ from google.genai import types
 import os
 from pydantic import BaseModel, Field
 
+# Safe quoting for ASP emission
+_BACKSLASH = "\\\\"
+_QUOTE = '\\"'
+def q(s: Optional[str]) -> str:
+    """
+    Quote a Python string as a Clingo string term.
+    Escapes backslashes and double-quotes.
+    """
+    if s is None:
+        s = ""
+    return '"' + s.replace("\\", _BACKSLASH).replace('"', _QUOTE) + '"'
+
+_ALLOWED_TYPES = {"premise", "intermediate", "conclusion"}
+def clamp_claim_type(t: Optional[str]) -> str:
+    """Ensure claim type is one of the allowed atoms; default to 'premise' if unknown."""
+    t = (t or "").strip()
+    return t if t in _ALLOWED_TYPES else "premise"
+
 # Pydantic models for structured output
 class ClaimModel(BaseModel):
     id: str = Field(description="Claim identifier (e.g., c1, c2)")
@@ -319,16 +337,18 @@ class ASPDebugger:
     def _build_asp_program(self, argument: Argument) -> str:
         """Convert argument to ASP rules"""
         
-        program = "% Claims\n"
         claim_contents = {}
+        program = "% Claims\n"
+        claim_ids = {c.id for c in argument.claims}
         for claim in argument.claims:
-            program += f'claim("{claim.id}", "{claim.type}").\n'
-            claim_contents[claim.id] = claim.content
+            program += f"claim({q(claim.id)}, {q(clamp_claim_type(claim.type))}).\n"
         
         program += "\n% Inferences\n"
         for inf in argument.inferences:
             for from_claim in inf.from_claims:
-                program += f'inference("{from_claim}", "{inf.to_claim}").\n'
+                # Only emit well-formed inferences between known claim ids
+                if from_claim in claim_ids and inf.to_claim in claim_ids:
+                    program += f"inference({q(from_claim)}, {q(inf.to_claim)}).\n"
         
         # Add equivalences if they exist
         if hasattr(argument, 'equivalences') and argument.equivalences:
@@ -337,23 +357,27 @@ class ASPDebugger:
                 # Create equivalence facts for each pair in the set
                 for i, claim1 in enumerate(equiv_set):
                     for claim2 in equiv_set[i+1:]:
-                        program += f'equivalent("{claim1}", "{claim2}").\n'
-                        program += f'equivalent("{claim2}", "{claim1}").\n'
+                        # Only for known claim ids
+                        if claim1 in claim_ids and claim2 in claim_ids:
+                            program += f"equivalent({q(claim1)}, {q(claim2)}).\n"
+                            program += f"equivalent({q(claim2)}, {q(claim1)}).\n"
         
-        if argument.goal_claim:
-            program += f'\n% Goal\ngoal("{argument.goal_claim}").\n'
+        if argument.goal_claim and argument.goal_claim in claim_ids:
+            program += f"\n% Goal\ngoal({q(argument.goal_claim)}).\n"
         
         # Add empirical claims identified by parser
         if hasattr(argument, 'empirical_claims') and argument.empirical_claims:
             program += "\n% Empirical claims identified by parser\n"
             for claim_id in argument.empirical_claims:
-                program += f'empirical_claim("{claim_id}").\n'
+                if claim_id in claim_ids:
+                    program += f"empirical_claim({q(claim_id)}).\n"
         
         # Add self-evident claims identified by parser
         if hasattr(argument, 'self_evident_claims') and argument.self_evident_claims:
             program += "\n% Self-evident claims (LLM judgement)\n"
             for cid in argument.self_evident_claims:
-                program += f'self_evident("{cid}").\n'
+                if cid in claim_ids:
+                    program += f"self_evident({q(cid)}).\n"
 
         # Add facts about dichotomous claims from parser
         if hasattr(argument, 'dichotomies') and argument.dichotomies:
@@ -362,7 +386,8 @@ class ASPDebugger:
                 claim_id = dichot.get('id')
                 justified = dichot.get('justified', False)
                 if not justified:  # Only mark unjustified dichotomies
-                    program += f'false_dichotomy_claim("{claim_id}").\n'
+                    if claim_id in claim_ids:
+                        program += f"false_dichotomy_claim({q(claim_id)}).\n"
                     if self.debug:
                         print(f"Marked {claim_id} as false dichotomy")
         
@@ -370,7 +395,8 @@ class ASPDebugger:
         if hasattr(argument, 'slippery_slopes') and argument.slippery_slopes:
             program += "\n% Slippery slopes identified by parser\n"
             for claim_id in argument.slippery_slopes:
-                program += f'slippery_slope_claim("{claim_id}").\n'
+                if claim_id in claim_ids:
+                    program += f"slippery_slope_claim({q(claim_id)}).\n"
                 if self.debug:
                     print(f"Marked {claim_id} as slippery slope")
         
@@ -505,10 +531,10 @@ mutually_dependent(X, Y) :- depends_on(X, Y), depends_on(Y, X), X != Y.
 circular_reasoning(X) :- mutually_dependent(X, _).
 
 % -------------------------
-% Pattern flags from parser
+% Pattern flags from parser (only for known claims)
 % -------------------------
-false_dichotomy(C) :- false_dichotomy_claim(C).
-slippery_slope(C)  :- slippery_slope_claim(C).
+false_dichotomy(C) :- false_dichotomy_claim(C), claim(C, _).
+slippery_slope(C) :- slippery_slope_claim(C), claim(C, _).
 
 % -------------------------
 % Show only issue atoms
