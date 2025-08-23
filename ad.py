@@ -445,13 +445,19 @@ class ASPDebugger:
         has_empirical_support(C) :- justified_empirically(C).
         has_empirical_support(C) :- has_citation(C).
 
+        is_evidence_for_another(C) :-
+            empirical_claim(C),
+            empirical_claim(D),
+            inference(C, D).
+
         % Only flag relevant empirical premises that are not marked self-evident and lack support
         unsupported_premise(C) :-
             claim(C, "premise"),
             empirical_claim(C),
             relevant_premise(C),
             not self_evident(C),   % OPTIONAL LLM-provided fact; ignored if absent
-            not has_empirical_support(C).
+            not has_empirical_support(C),
+            not is_evidence_for_another(C).
         
         % Detect circular reasoning with equivalences
         % Standard dependencies
