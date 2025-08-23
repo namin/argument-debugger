@@ -371,142 +371,149 @@ class ASPDebugger:
                     print(f"Marked {claim_id} as slippery slope")
         
         program += """
-        % Track which claims have incoming inferences
-        has_inference(C) :- inference(_, C).
-        
-        % A claim is supported if:
-        % 1. It's a premise without empirical content, OR
-        % 2. It's an intermediate claim with support, OR
-        % 3. It has valid inferences from supported claims
-        basic_premise(C) :- 
-            claim(C, "premise"),
-            not empirical_claim(C).
-        
-        % Intermediate claims can also serve as support if they have inferences
-        basic_intermediate(C) :-
-            claim(C, "intermediate"),
-            has_inference(C).
-            
-        supported(C) :- basic_premise(C).
-        supported(C) :- basic_intermediate(C).
-        supported(C) :- 
-            inference(From, C),
-            supported(From).
-        
-        % Find missing links
-        % Case 1: Conclusion with no inference at all
-        missing_link("premises", C) :- 
-            claim(C, "conclusion"),
-            not has_inference(C).
-            
-        % Case 2: Goal with no path from premises
-        missing_link("premises", G) :- 
-            goal(G),
-            not has_inference(G).
-            
-        % Case 3: Inference exists but chain is broken
-        % If a conclusion fails support only because some upstream premise is unsupported,
-        % prefer surfacing the specific unsupported_premise(s) instead of also emitting a missing_link.
-        has_upstream_unsupported(C) :- unsupported_premise(P), supports(P, C).
-        missing_link("support", C) :-
-            claim(C, "conclusion"),
-            has_inference(C),
-            not supported(C),
-            not has_upstream_unsupported(C).
-        
-        % --- Balanced unsupported empirical premise rules ---
+% =========================
+% Argument Analysis (ASP)
+% =========================
+% The Python side supplies these facts (do not redefine here):
+%   claim(ID, "premise" | "intermediate" | "conclusion").
+%   inference(From, To).
+%   equivalent(A, B).        % both directions are generated in Python
+%   goal(G).                 % optional
+%   empirical_claim(ID).     % list from parser
+%   self_evident(ID).        % list from parser
+%   false_dichotomy_claim(ID).
+%   slippery_slope_claim(ID).
+%   % Optional (if you ever choose to emit them from the LLM):
+%   has_citation(ID).
+%   justified_empirically(ID).
 
-        % Relevance: only premises that contribute to a conclusion or the goal are worth flagging
-        relevant_premise(C) :-
-            goal(G),
-            supports(C, G).
-        relevant_premise(C) :-
-            supports(C, K),
-            claim(K, "conclusion").
+% -------------------------
+% Support graph (closure)
+% -------------------------
+supports(X, Y) :- inference(X, Y).
+supports(X, Z) :- supports(X, Y), inference(Y, Z).
 
-        % Empirical support may be:
-        %  (a) direct: empirical -> C
-        %  (b) transitive: chain of empirical claims leading to C
-        %  (c) via equivalence: support transfers across equivalent claims
-        %  (d) OPTIONAL: explicitly marked by the parser/LLM (has_citation/1 or justified_empirically/1)
+% Bridge through equivalence (both ways because Python emits both directions).
+supports(X, Z) :- supports(X, Y), equivalent(Y, Z).
+supports(E, Y) :- equivalent(E, X), supports(X, Y).
 
-        emp_support_link(S, C) :-
-            empirical_claim(S),
-            inference(S, C).
+has_inference(C) :- inference(_, C).
 
-        emp_support_link(S, C) :-
-            empirical_claim(S),
-            inference(S, Y),
-            emp_support_link(Y, C).
+% -------------------------
+% Empirical support
+% -------------------------
+% A claim C has empirical support if some upstream supporter S is empirical,
+% and C is not (even indirectly) supporting S (prevents circular “evidence”).
+has_empirical_support(C) :-
+    empirical_claim(C),
+    supports(S, C),
+    empirical_claim(S),
+    not supports(C, S).
 
-        % support carries across equivalences in either direction
-        emp_support_link(S, C) :-
-            emp_support_link(S, E),
-            equivalent(E, C).
+% Optional levers provided by the parser/LLM (if present)
+has_empirical_support(C) :- justified_empirically(C).
+has_empirical_support(C) :- has_citation(C).
 
-        has_empirical_support(C) :-
-            empirical_claim(C),
-            emp_support_link(_, C).
+% -------------------------
+% Admissible premises
+% -------------------------
+% Non-empirical premises are admissible by default.
+admissible_premise(C) :-
+    claim(C, "premise"),
+    not empirical_claim(C).
 
-        % OPTIONAL LLM-provided facts (safe to omit; they simply won't fire if absent)
-        has_empirical_support(C) :- justified_empirically(C).
-        has_empirical_support(C) :- has_citation(C).
+% Empirical premises are admissible only if supported or self-evident.
+admissible_premise(C) :-
+    claim(C, "premise"),
+    empirical_claim(C),
+    has_empirical_support(C).
+admissible_premise(C) :-
+    claim(C, "premise"),
+    empirical_claim(C),
+    self_evident(C).
 
-        is_evidence_for_another(C) :-
-            empirical_claim(C),
-            empirical_claim(D),
-            inference(C, D).
+% -------------------------
+% Node-level support
+% -------------------------
+supported(C) :- admissible_premise(C).
+supported(C) :- supports(From, C), supported(From).
 
-        % Only flag relevant empirical premises that are not marked self-evident and lack support
-        unsupported_premise(C) :-
-            claim(C, "premise"),
-            empirical_claim(C),
-            relevant_premise(C),
-            not self_evident(C),   % OPTIONAL LLM-provided fact; ignored if absent
-            not has_empirical_support(C),
-            not is_evidence_for_another(C).
-        
-        % Detect circular reasoning with equivalences
-        % Standard dependencies
-        depends_on(X, Y) :- inference(Y, X).
-        depends_on(X, Z) :- depends_on(X, Y), inference(Z, Y).
-        
-        % Key insight: if X depends on Y and Y is equivalent to X, that's circular!
-        circular_reasoning(X) :- depends_on(X, Y), equivalent(X, Y).
-        
-        % Also catch self-loops
-        circular_reasoning(X) :- depends_on(X, X).
-        
-        % Also detect mutual dependency (A->B and B->A implicitly)
-        % This catches cases where claims are interdependent
-        mutually_dependent(X, Y) :- depends_on(X, Y), depends_on(Y, X), X != Y.
-        circular_reasoning(X) :- mutually_dependent(X, _).
-        
-        % Detect when a claim's only support comes from claims it supports
-        % (a more general form of circular reasoning)
-        supports(X, Y) :- inference(X, Y).
-        supports(X, Z) :- supports(X, Y), supports(Y, Z).
-        only_supported_by_dependents(X) :- 
-            claim(X, _),
-            has_inference(X),
-            inference(Y, X),
-            supports(X, Y).
-        
-        % Detect false dichotomies
-        % Parser identifies which dichotomies are unjustified
-        false_dichotomy(C) :- 
-            false_dichotomy_claim(C).
-        
-        % Detect slippery slopes
-        % Parser identifies claims using slippery slope reasoning
-        slippery_slope(C) :- 
-            slippery_slope_claim(C).
-        
-        #show missing_link/2.
-        #show unsupported_premise/1.
-        #show circular_reasoning/1.
-        #show false_dichotomy/1.
-        #show slippery_slope/1.
+% -------------------------
+% Relevance for premise flags
+% -------------------------
+relevant_premise(C) :-
+    goal(G), supports(C, G).
+relevant_premise(C) :-
+    supports(C, K), claim(K, "conclusion").
+
+% -------------------------
+% Unsupported empirical premises (the main, precise signal)
+% -------------------------
+unsupported_premise(C) :-
+    claim(C, "premise"),
+    empirical_claim(C),
+    relevant_premise(C),
+    not self_evident(C),
+    not has_empirical_support(C).
+
+% -------------------------
+% Missing links
+% -------------------------
+% Case A: no inference into a conclusion at all
+missing_link("premises", C) :-
+    claim(C, "conclusion"),
+    not has_inference(C).
+
+% Case B: goal has no inference at all
+missing_link("premises", G) :-
+    goal(G),
+    not has_inference(G).
+
+% Case C: conclusion has some inferences, but its proof fails.
+% If failure is *only* because upstream premises are unsupported,
+% prefer surfacing those specific unsupported_premise/1 instead of a generic gap.
+has_upstream_unsupported(C) :- unsupported_premise(P), supports(P, C).
+
+missing_link("support", C) :-
+    claim(C, "conclusion"),
+    has_inference(C),
+    not supported(C),
+    not has_upstream_unsupported(C).
+
+% -------------------------
+% Circular reasoning
+% -------------------------
+depends_on(X, Y) :- inference(Y, X).
+depends_on(X, Z) :- depends_on(X, Y), inference(Z, Y).
+
+% Let equivalence propagate dependencies
+depends_on(X, Z) :- depends_on(X, Y), equivalent(Y, Z).
+depends_on(Z, X) :- equivalent(Z, Y), depends_on(Y, X).
+
+% Self-loop cycle
+circular_reasoning(X) :- depends_on(X, X).
+
+% Cycle via equivalence to the “same” claim
+circular_reasoning(X) :- depends_on(X, Y), equivalent(X, Y).
+
+% Mutual dependency cycle (A depends on B and B depends on A)
+mutually_dependent(X, Y) :- depends_on(X, Y), depends_on(Y, X), X != Y.
+circular_reasoning(X) :- mutually_dependent(X, _).
+
+% -------------------------
+% Pattern flags from parser
+% -------------------------
+false_dichotomy(C) :- false_dichotomy_claim(C).
+slippery_slope(C)  :- slippery_slope_claim(C).
+
+% -------------------------
+% Show only issue atoms
+% -------------------------
+#show missing_link/2.
+#show unsupported_premise/1.
+#show circular_reasoning/1.
+#show false_dichotomy/1.
+#show slippery_slope/1.
         """
         
         return program
