@@ -604,6 +604,8 @@ Generate a clean argument that:
 2. Addresses weaknesses identified in the repair
 3. Uses alternative reasoning if the original reasoning was refuted
 4. Remains intellectually honest by acknowledging when shifting to different arguments
+5. Includes at least one explicit bridge sentence that links the evidence to the conclusion
+6. Ends with the original conclusion as the final sentence
 
 Write ONLY the argument itself as a series of clear statements.
 Do not include any headers, explanations, or formatting.
