@@ -147,8 +147,10 @@ class ArgumentParser:
         5. Empirical claims: Claims that make factual assertions requiring evidence
            - List of claim IDs that need empirical support
         
-        6. Self-evident claims: Claims that are widely accepted background facts that do not require evidence in this context
-           - List of claim IDs that are self-evident
+        6. Self-evident claims: Claims that are widely accepted background facts OR contain specific citations/evidence
+           - List of claim IDs that are self-evident or well-supported
+           - Include claims that cite specific sources, statistics, studies, or biblical verses
+           - Include claims with specific data points (percentages, dates, names)
         
         7. Slippery slopes: Claims that argue one action leads to extreme consequences
            - List of claim IDs using slippery slope reasoning
