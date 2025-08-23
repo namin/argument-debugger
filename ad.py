@@ -78,13 +78,6 @@ class Issue:
     description: str
     involved_claims: List[str]
 
-@dataclass
-class Repair:
-    type: str  # always "addition" for now
-    description: str
-    content: Optional[str] = None
-    additions: Optional[List[str]] = None  # New premises to add
-
 llm_model = "gemini-2.5-flash"
 def init_llm_client():
     gemini_api_key = os.getenv('GEMINI_API_KEY')
@@ -460,7 +453,7 @@ class ASPDebugger:
 # ArgumentDebugger class would remain the same
 
 class RepairGenerator:
-    """Generates and verifies repairs for identified issues"""
+    """Generates repairs for identified issues"""
     
     def __init__(self, debug: bool = False):
         self.client = init_llm_client()
@@ -470,42 +463,52 @@ class RepairGenerator:
             thinking_config=types.ThinkingConfig(thinking_budget=0)
         )
     
-    def generate_repair(self, argument: Argument, issues: List[Issue]) -> Tuple[Optional[Repair], List[Issue]]:
-        """Generate one comprehensive repair and return it with remaining issues"""
+    def generate_repair(self, argument_text: str, argument: Argument, issues: List[Issue]) -> Tuple[Optional[str], List[Issue]]:
+        """Generate repair text"""
         
         if not issues:
             return None, []
         
-        # Generate a comprehensive repair
-        repair = self._generate_cover_set_repair(argument, issues)
+        # Generate repair text
+        repair = self._generate_repair_text(argument, issues)
         if not repair:
-            return None, issues
+            return None
         
-        # Apply repair and get full analysis of remaining issues
-        modified_arg = self._apply_repair(repair, argument)
-        debugger = ASPDebugger(debug=False)
-        remaining_issues = debugger.analyze(modified_arg)
-        
-        return repair, remaining_issues
+        return repair
     
-    def _generate_cover_set_repair(self, argument: Argument, issues: List[Issue]) -> Optional[Repair]:
-        """Generate a comprehensive repair that covers all issues"""
+    def _generate_repair_text(self, argument: Argument, issues: List[Issue]) -> Optional[str]:
+        """Generate text that addresses the issues"""
         
-        # Build coverage specification
-        coverage_spec = self._build_coverage_specification(argument, issues)
+        # Build a simple list of what needs fixing
+        issue_descriptions = []
+        for issue in issues:
+            if issue.type == "missing_link":
+                if len(issue.involved_claims) >= 2:
+                    to_claim = issue.involved_claims[1]
+                    to_content = self._get_claim_content(argument, to_claim)
+                    issue_descriptions.append(f"- Bridge the logical gap to: {to_content}")
+            elif issue.type == "unsupported_premise":
+                claim_id = issue.involved_claims[0]
+                claim_content = self._get_claim_content(argument, claim_id)
+                issue_descriptions.append(f"- Provide evidence for: {claim_content}")
+            elif issue.type == "circular":
+                issue_descriptions.append(f"- Break circular reasoning with independent support")
+            elif issue.type == "false_dichotomy":
+                claim_id = issue.involved_claims[0]
+                claim_content = self._get_claim_content(argument, claim_id)
+                issue_descriptions.append(f"- Address the false dichotomy in: {claim_content}")
+            elif issue.type == "slippery_slope":
+                claim_id = issue.involved_claims[0]
+                claim_content = self._get_claim_content(argument, claim_id)
+                issue_descriptions.append(f"- Justify the causal chain in: {claim_content}")
+        
+        issues_text = "\n".join(issue_descriptions)
         
         prompt = f"""
-{coverage_spec}
+Add text to this argument to address these issues:
+{issues_text}
 
-Generate premises that, when added to the argument, will resolve ALL the issues listed above.
-Do not modify existing claims, only add new supporting premises.
-
-Requirements:
-- The additions must resolve every issue in the coverage specification
-- Be specific and concrete
-- Ensure logical coherence with existing claims
-
-Respond with just the addition(s), one per line. No explanation.
+Write additional statements that resolve the issues. Be concise and direct.
 """
         
         response = self.client.models.generate_content(
@@ -516,121 +519,10 @@ Respond with just the addition(s), one per line. No explanation.
         
         repair_text = response.text.strip()
         
-        # Parse additions - just split by newlines
-        additions = []
-        for line in repair_text.split('\n'):
-            line = line.strip()
-            if line:
-                additions.append(line)
-        
-        if not additions:
+        if not repair_text:
             return None
         
-        repair = Repair(
-            type="addition",
-            description="Comprehensive repair",
-            content=repair_text,
-            additions=additions
-        )
-        
-        return repair
-    
-    def _build_coverage_specification(self, argument: Argument, issues: List[Issue]) -> str:
-        """Build a structured specification of what needs to be covered"""
-        
-        # Get argument structure
-        premises_text = "\n".join([f"  {c.id}: {c.content}" for c in argument.claims if c.type == "premise"])
-        conclusions_text = "\n".join([f"  {c.id}: {c.content}" for c in argument.claims if c.type == "conclusion"])
-        
-        # Build issue coverage requirements
-        coverage_reqs = []
-        for i, issue in enumerate(issues, 1):
-            if issue.type == "missing_link":
-                involved = issue.involved_claims
-                if len(involved) >= 2:
-                    from_claims = involved[0]
-                    to_claim = involved[1]
-                    to_content = self._get_claim_content(argument, to_claim)
-                    coverage_reqs.append(f"{i}. MISSING LINK: No connection from {from_claims} to {to_claim}\n   REQUIRED: Logical bridge to reach '{to_content}'")
-            
-            elif issue.type == "unsupported_premise":
-                claim_id = issue.involved_claims[0]
-                claim_content = self._get_claim_content(argument, claim_id)
-                coverage_reqs.append(f"{i}. UNSUPPORTED: Claim {claim_id} lacks evidence\n   REQUIRED: Supporting evidence for '{claim_content}'")
-            
-            elif issue.type == "circular":
-                claim_id = issue.involved_claims[0]
-                coverage_reqs.append(f"{i}. CIRCULAR: Claim {claim_id} is part of circular reasoning\n   REQUIRED: Independent support that breaks the circle")
-            
-            elif issue.type == "false_dichotomy":
-                claim_id = issue.involved_claims[0]
-                claim_content = self._get_claim_content(argument, claim_id)
-                coverage_reqs.append(f"{i}. FALSE DICHOTOMY: {claim_id} presents limited options\n   REQUIRED: Acknowledge other possibilities or justify the limitation")
-            
-            elif issue.type == "slippery_slope":
-                claim_id = issue.involved_claims[0]
-                coverage_reqs.append(f"{i}. SLIPPERY SLOPE: {claim_id} makes unjustified leap\n   REQUIRED: Justify the progression or moderate the claim")
-        
-        spec = f"""ARGUMENT STRUCTURE:
-Premises:
-{premises_text}
-
-Conclusions:
-{conclusions_text}
-
-COVERAGE REQUIREMENTS (must address ALL):
-{chr(10).join(coverage_reqs)}
-"""
-        
-        return spec
-    
-    
-    def _apply_repair(self, repair: Repair, argument: Argument) -> Argument:
-        """Apply a repair to an argument to create a modified version"""
-        
-        # Create a deep copy of the argument
-        import copy
-        modified = copy.deepcopy(argument)
-        
-        # Preserve all attributes
-        if hasattr(argument, 'equivalences'):
-            modified.equivalences = copy.deepcopy(argument.equivalences)
-        if hasattr(argument, 'dichotomies'):
-            modified.dichotomies = copy.deepcopy(argument.dichotomies)
-        if hasattr(argument, 'empirical_claims'):
-            modified.empirical_claims = copy.deepcopy(argument.empirical_claims)
-        if hasattr(argument, 'slippery_slopes'):
-            modified.slippery_slopes = copy.deepcopy(argument.slippery_slopes)
-        
-        # Add new premises
-        if repair.additions:
-            new_claim_ids = []
-            for i, addition in enumerate(repair.additions):
-                new_claim_id = f"r{len(modified.claims) + 1 + i}"
-                new_claim = Claim(
-                    id=new_claim_id,
-                    content=addition,
-                    type="premise"
-                )
-                modified.claims.append(new_claim)
-                new_claim_ids.append(new_claim_id)
-            
-            # Try to connect first new premise to unsupported conclusions
-            for claim in modified.claims:
-                if claim.type == "conclusion":
-                    has_inference = any(inf.to_claim == claim.id for inf in modified.inferences)
-                    if not has_inference and new_claim_ids:
-                        new_inference = Inference(
-                            from_claims=[new_claim_ids[0]],
-                            to_claim=claim.id,
-                            rule_type="deductive"
-                        )
-                        modified.inferences.append(new_inference)
-                        break  # Only connect to first unsupported conclusion
-        
-        
-        return modified
-    
+        return repair_text
     
     def _get_claim_content(self, argument: Argument, claim_id: str) -> str:
         """Get claim content by ID"""
@@ -687,28 +579,30 @@ class ArgumentDebugger:
         # 3. Generate and apply repair if requested
         if apply_repair and issues:
             print(f"\n🔧 GENERATING REPAIR...")
-            repair, remaining_issues = self.repairer.generate_repair(argument, issues)
+            repair = self.repairer.generate_repair(argument_text, argument, issues)
             
             if repair:
                 print("\nAPPLYING:")
-                if repair.additions:
-                    for addition in repair.additions:
-                        print(f"-  ADD: \"{addition}\"")
+                print(f"Added text: \"{repair}\"")
                 
-                # Apply repair and show full analysis again
-                modified_arg = self.repairer._apply_repair(repair, argument)
+                repaired_argument_text = f"{argument_text}\n{repair}"
+
+                print("\nParsing repaired argument...")
+                repaired_argument = self.parser.parse_argument(repaired_argument_text)
                 
-                print("\nAFTER REPAIR:")
-                self._print_structure(modified_arg, "Modified structure")
+                self._print_structure(repaired_argument)
                 
+                # 2. Analyze for issues
                 print("\nRe-analyzing logical structure...")
+                remaining_issues = self.analyzer.analyze(repaired_argument)
+                
                 self._print_issues(remaining_issues)
                 
                 return {
                     "argument": argument,
                     "issues": issues,
                     "repair": repair,
-                    "modified_argument": modified_arg,
+                    "modified_argument": repaired_argument,
                     "remaining_issues": remaining_issues
                 }
         
