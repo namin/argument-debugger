@@ -586,16 +586,28 @@ Given this original argument:
 And this repair commentary:
 {repair_commentary}
 
-Generate a clean, integrated argument that:
-1. Incorporates the repairs and evidence from the commentary
-2. MAINTAINS THE ORIGINAL CONCLUSION - do not flip or refute it
-3. Strengthens the argument by addressing its weaknesses
-4. Presents a coherent flow from premises to the same conclusion
+Your task is to generate a clean, integrated argument that maintains the original conclusion.
+
+IMPORTANT: If the repair commentary contradicts or refutes the original premise, you should:
+1. Acknowledge the weakness of the original reasoning
+2. Find an ALTERNATIVE line of reasoning that could support the same conclusion
+3. Use phrases like "While [original premise] may be flawed, one could argue..." or "Setting aside [problematic reasoning], another consideration is..."
+4. Focus on different evidence or reasoning that doesn't rely on the refuted premise
+
+For example:
+- If the original uses a slippery slope that's been refuted, find a different reason to support the conclusion
+- If the original uses ad hominem that's been shown invalid, find substantive reasons for the conclusion
+- If evidence contradicts a premise, acknowledge this and pivot to different supporting points
+
+Generate a clean argument that:
+1. Maintains the ORIGINAL CONCLUSION
+2. Addresses weaknesses identified in the repair
+3. Uses alternative reasoning if the original reasoning was refuted
+4. Remains intellectually honest by acknowledging when shifting to different arguments
 
 Write ONLY the argument itself as a series of clear statements.
 Do not include any headers, explanations, or formatting.
 Each statement should be a complete sentence.
-The argument should support and lead to the ORIGINAL conclusion, not argue against it.
 """
         
         response = self.client.models.generate_content(
