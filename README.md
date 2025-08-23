@@ -75,6 +75,12 @@ Show Remaining Issues
 
 - **ArgumentDebugger**: Orchestrates the full pipeline
 
+## Other Experiments
+
+- [ad_baseline.py](ad_baseline.py): a whole-LLM baseline from a single prompt to issue detection. Compatible with tests.
+- [ad_debate.py](ad_debate.py): analyzes the debate frontier.
+- [logical_form.py](logical_form.py): encoding to First-Order Logic (FOL), with detecting using ASP and certification in Lean. See dedicated [tutorial](TUTORIAL_FOL.md).
+
 ## References for Future Work
 
 - [ASP encodings for several semantics and reasoning tasks in Dung AFs](https://www.dbai.tuwien.ac.at/research/argumentation/aspartix/dung.html)
