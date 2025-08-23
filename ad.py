@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Argument Debugger with Pydantic models for structured output from Gemini
+Argument Debugger: An LLM+ASP-based system for analyzing and repairing arguments
 """
 
 import json
