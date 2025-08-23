@@ -316,7 +316,7 @@ If the LLM output labels the inference appropriately, ASP will print the match; 
 ## 8) Extending the system
 
 **Add a detection rule (ASP)**
-1. Choose a name like `valid_deductive_pattern/…` or `fallacy_…`.
+1. Choose a name like `valid_constructive_dilemma/…` or `fallacy_…`.
 2. Write a rule that matches your structure (`binary`, `quantifier`, `negation`, etc.).
 3. Add it to the `#show` list so it appears in output.
 4. Update the Python post‑processing to format the message.
