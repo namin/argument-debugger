@@ -398,10 +398,14 @@ class ASPDebugger:
             not has_inference(G).
             
         % Case 3: Inference exists but chain is broken
-        missing_link("support", C) :- 
+        % If a conclusion fails support only because some upstream premise is unsupported,
+        % prefer surfacing the specific unsupported_premise(s) instead of also emitting a missing_link.
+        has_upstream_unsupported(C) :- unsupported_premise(P), supports(P, C).
+        missing_link("support", C) :-
             claim(C, "conclusion"),
             has_inference(C),
-            not supported(C).
+            not supported(C),
+            not has_upstream_unsupported(C).
         
         % --- Balanced unsupported empirical premise rules ---
 
@@ -582,11 +586,16 @@ Given this original argument:
 And this repair commentary:
 {repair_commentary}
 
-Generate a clean, integrated argument that incorporates the repairs.
+Generate a clean, integrated argument that:
+1. Incorporates the repairs and evidence from the commentary
+2. MAINTAINS THE ORIGINAL CONCLUSION - do not flip or refute it
+3. Strengthens the argument by addressing its weaknesses
+4. Presents a coherent flow from premises to the same conclusion
+
 Write ONLY the argument itself as a series of clear statements.
 Do not include any headers, explanations, or formatting.
 Each statement should be a complete sentence.
-Connect the statements naturally to form a coherent argument.
+The argument should support and lead to the ORIGINAL conclusion, not argue against it.
 """
         
         response = self.client.models.generate_content(
