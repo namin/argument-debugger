@@ -275,7 +275,7 @@ class ASPDebugger:
                         claim_id = str(atom.arguments[0]).strip('"')
                         asp_issues.append(Issue(
                             type="false_dichotomy",
-                            description=f"False dichotomy: presents only two options when more may exist",
+                            description=f"False dichotomy in {claim_id}: presents only two options when more may exist",
                             involved_claims=[claim_id]
                         ))
                     
@@ -283,7 +283,7 @@ class ASPDebugger:
                         claim_id = str(atom.arguments[0]).strip('"')
                         asp_issues.append(Issue(
                             type="slippery_slope",
-                            description=f"Slippery slope: argues that one action leads to extreme consequences without justification",
+                            description=f"Slippery slope in {claim_id}: argues that one action leads to extreme consequences without justification",
                             involved_claims=[claim_id]
                         ))
                 
