@@ -80,12 +80,10 @@ class Issue:
 
 @dataclass
 class Repair:
-    type: str  # add_premise, add_inference, remove_claim
+    type: str  # always "addition" for now
     description: str
     content: Optional[str] = None
-    confidence: float = 0.0
-    score: float = 0.0  # Overall ranking score
-    score_breakdown: Dict[str, float] = field(default_factory=dict)  # Detailed scores
+    additions: Optional[List[str]] = None  # New premises to add
 
 llm_model = "gemini-2.5-flash"
 llm_config = types.GenerateContentConfig(
@@ -440,92 +438,178 @@ class ASPDebugger:
 # ArgumentDebugger class would remain the same
 
 class RepairGenerator:
-    """Generates and ranks repairs for identified issues"""
+    """Generates and verifies repairs for identified issues"""
     
-    def __init__(self):
+    def __init__(self, debug: bool = False):
         self.client = init_llm_client()
-        # Weights for repair ranking
-        self.ranking_weights = {
-            'minimality': 0.25,
-            'plausibility': 0.30,
-            'relevance': 0.25,
-            'evidence_quality': 0.20
-        }
-        # Use standard config for repair generation (not structured output)
+        self.debug = debug
+        # Config for repair generation
         self.repair_config = types.GenerateContentConfig(
             temperature=0.1,
             thinking_config=types.ThinkingConfig(thinking_budget=0)
         )
     
-    def generate_repairs(self, argument: Argument, issues: List[Issue]) -> List[Repair]:
-        """Generate concrete repairs for each issue"""
+    def generate_repair(self, argument: Argument, issues: List[Issue]) -> Tuple[Optional[Repair], List[Issue]]:
+        """Generate one comprehensive repair and return it with remaining issues"""
         
-        repairs = []
+        if not issues:
+            return None, []
         
-        for issue in issues:
+        # Generate a comprehensive repair
+        repair = self._generate_cover_set_repair(argument, issues)
+        if not repair:
+            return None, issues
+        
+        # Apply repair and get full analysis of remaining issues
+        modified_arg = self._apply_repair(repair, argument)
+        debugger = ASPDebugger(debug=False)
+        remaining_issues = debugger.analyze(modified_arg)
+        
+        return repair, remaining_issues
+    
+    def _generate_cover_set_repair(self, argument: Argument, issues: List[Issue]) -> Optional[Repair]:
+        """Generate a comprehensive repair that covers all issues"""
+        
+        # Build coverage specification
+        coverage_spec = self._build_coverage_specification(argument, issues)
+        
+        prompt = f"""
+{coverage_spec}
+
+Generate premises that, when added to the argument, will resolve ALL the issues listed above.
+Do not modify existing claims, only add new supporting premises.
+
+Requirements:
+- The additions must resolve every issue in the coverage specification
+- Be specific and concrete
+- Ensure logical coherence with existing claims
+
+Respond with just the addition(s), one per line. No explanation.
+"""
+        
+        response = self.client.models.generate_content(
+            model=llm_model,
+            contents=prompt,
+            config=self.repair_config
+        )
+        
+        repair_text = response.text.strip()
+        
+        # Parse additions - just split by newlines
+        additions = []
+        for line in repair_text.split('\n'):
+            line = line.strip()
+            if line:
+                additions.append(line)
+        
+        if not additions:
+            return None
+        
+        repair = Repair(
+            type="addition",
+            description="Comprehensive repair",
+            content=repair_text,
+            additions=additions
+        )
+        
+        return repair
+    
+    def _build_coverage_specification(self, argument: Argument, issues: List[Issue]) -> str:
+        """Build a structured specification of what needs to be covered"""
+        
+        # Get argument structure
+        premises_text = "\n".join([f"  {c.id}: {c.content}" for c in argument.claims if c.type == "premise"])
+        conclusions_text = "\n".join([f"  {c.id}: {c.content}" for c in argument.claims if c.type == "conclusion"])
+        
+        # Build issue coverage requirements
+        coverage_reqs = []
+        for i, issue in enumerate(issues, 1):
             if issue.type == "missing_link":
-                # Get all premises and the target
-                premises = [c for c in argument.claims if c.type == "premise"]
-                to_claim = issue.involved_claims[1]
-                to_claim_content = self._get_claim_content(argument, to_claim)
-                
-                # Generate bridging premise
-                premises_text = "\n".join([f"- {c.content}" for c in premises])
-                bridge = self._generate_bridge(premises_text, to_claim_content)
-                
-                repairs.append(Repair(
-                    type="add_premise",
-                    description=f"Add bridging premise to connect existing claims to {to_claim}",
-                    content=bridge,
-                    confidence=0.8
-                ))
+                involved = issue.involved_claims
+                if len(involved) >= 2:
+                    from_claims = involved[0]
+                    to_claim = involved[1]
+                    to_content = self._get_claim_content(argument, to_claim)
+                    coverage_reqs.append(f"{i}. MISSING LINK: No connection from {from_claims} to {to_claim}\n   REQUIRED: Logical bridge to reach '{to_content}'")
             
             elif issue.type == "unsupported_premise":
-                claim_content = self._get_claim_content(argument, issue.involved_claims[0])
-                
-                # Generate support for unsupported premises
-                support = self._generate_support(claim_content)
-                repairs.append(Repair(
-                    type="add_premise",
-                    description=f"Add supporting evidence for {issue.involved_claims[0]}",
-                    content=support,
-                    confidence=0.7
-                ))
+                claim_id = issue.involved_claims[0]
+                claim_content = self._get_claim_content(argument, claim_id)
+                coverage_reqs.append(f"{i}. UNSUPPORTED: Claim {claim_id} lacks evidence\n   REQUIRED: Supporting evidence for '{claim_content}'")
             
             elif issue.type == "circular":
-                # For circular reasoning, suggest breaking the circle
-                repairs.append(Repair(
-                    type="add_premise",
-                    description=f"Add independent evidence to break circular dependency",
-                    content=self._generate_independent_support(argument, issue.involved_claims[0]),
-                    confidence=0.6
-                ))
+                claim_id = issue.involved_claims[0]
+                coverage_reqs.append(f"{i}. CIRCULAR: Claim {claim_id} is part of circular reasoning\n   REQUIRED: Independent support that breaks the circle")
             
             elif issue.type == "false_dichotomy":
-                # For false dichotomy, suggest alternative options
-                claim_content = self._get_claim_content(argument, issue.involved_claims[0])
-                alternatives = self._generate_alternatives(claim_content)
-                repairs.append(Repair(
-                    type="add_premise",
-                    description=f"Acknowledge alternative options beyond the presented dichotomy",
-                    content=alternatives,
-                    confidence=0.85
-                ))
+                claim_id = issue.involved_claims[0]
+                claim_content = self._get_claim_content(argument, claim_id)
+                coverage_reqs.append(f"{i}. FALSE DICHOTOMY: {claim_id} presents limited options\n   REQUIRED: Acknowledge other possibilities or justify the limitation")
             
             elif issue.type == "slippery_slope":
-                # For slippery slope, suggest justifying intermediate steps
-                claim_content = self._get_claim_content(argument, issue.involved_claims[0])
-                justification = self._generate_slope_justification(claim_content)
-                repairs.append(Repair(
-                    type="add_premise",
-                    description=f"Add justification for the progression or remove extreme comparison",
-                    content=justification,
-                    confidence=0.75
-                ))
+                claim_id = issue.involved_claims[0]
+                coverage_reqs.append(f"{i}. SLIPPERY SLOPE: {claim_id} makes unjustified leap\n   REQUIRED: Justify the progression or moderate the claim")
         
-        # Rank repairs before returning
-        ranked_repairs = self._rank_repairs(repairs, argument, issues)
-        return ranked_repairs
+        spec = f"""ARGUMENT STRUCTURE:
+Premises:
+{premises_text}
+
+Conclusions:
+{conclusions_text}
+
+COVERAGE REQUIREMENTS (must address ALL):
+{chr(10).join(coverage_reqs)}
+"""
+        
+        return spec
+    
+    
+    def _apply_repair(self, repair: Repair, argument: Argument) -> Argument:
+        """Apply a repair to an argument to create a modified version"""
+        
+        # Create a deep copy of the argument
+        import copy
+        modified = copy.deepcopy(argument)
+        
+        # Preserve all attributes
+        if hasattr(argument, 'equivalences'):
+            modified.equivalences = copy.deepcopy(argument.equivalences)
+        if hasattr(argument, 'dichotomies'):
+            modified.dichotomies = copy.deepcopy(argument.dichotomies)
+        if hasattr(argument, 'empirical_claims'):
+            modified.empirical_claims = copy.deepcopy(argument.empirical_claims)
+        if hasattr(argument, 'slippery_slopes'):
+            modified.slippery_slopes = copy.deepcopy(argument.slippery_slopes)
+        
+        # Add new premises
+        if repair.additions:
+            new_claim_ids = []
+            for i, addition in enumerate(repair.additions):
+                new_claim_id = f"r{len(modified.claims) + 1 + i}"
+                new_claim = Claim(
+                    id=new_claim_id,
+                    content=addition,
+                    type="premise"
+                )
+                modified.claims.append(new_claim)
+                new_claim_ids.append(new_claim_id)
+            
+            # Try to connect first new premise to unsupported conclusions
+            for claim in modified.claims:
+                if claim.type == "conclusion":
+                    has_inference = any(inf.to_claim == claim.id for inf in modified.inferences)
+                    if not has_inference and new_claim_ids:
+                        new_inference = Inference(
+                            from_claims=[new_claim_ids[0]],
+                            to_claim=claim.id,
+                            rule_type="deductive"
+                        )
+                        modified.inferences.append(new_inference)
+                        break  # Only connect to first unsupported conclusion
+        
+        
+        return modified
+    
     
     def _get_claim_content(self, argument: Argument, claim_id: str) -> str:
         """Get claim content by ID"""
@@ -534,251 +618,80 @@ class RepairGenerator:
                 return claim.content
         return ""
     
-    def _generate_bridge(self, premises: str, conclusion: str) -> str:
-        """Generate a bridging premise using LLM"""
-        
-        prompt = f"""
-        What logical principle or empirical claim would connect these premises to this conclusion?
-        
-        Premises:
-        {premises}
-        
-        Conclusion: {conclusion}
-        
-        Provide a single, clear bridging premise that makes the inference valid.
-        The premise should be specific and directly connect the given claims.
-        """
-        
-        response = self.client.models.generate_content(
-            model=llm_model,
-            contents=prompt,
-            config=self.repair_config
-        )
-        
-        return response.text.strip()
-    
-    def _generate_support(self, claim: str) -> str:
-        """Generate supporting evidence for a claim"""
-        
-        prompt = f"""
-        This claim needs empirical support or evidence:
-        
-        Claim: {claim}
-        
-        Provide a single piece of supporting evidence, study, or data that would support this claim.
-        Be specific and realistic. If it's an empirical claim, suggest what kind of study or data would be needed.
-        """
-        
-        response = self.client.models.generate_content(
-            model=llm_model,
-            contents=prompt,
-            config=self.repair_config
-        )
-        
-        return response.text.strip()
-    
-    def _generate_independent_support(self, argument: Argument, claim_id: str) -> str:
-        """Generate independent support to break circular reasoning"""
-        
-        claim_content = self._get_claim_content(argument, claim_id)
-        
-        prompt = f"""
-        This claim is part of a circular reasoning pattern and needs independent support:
-        
-        Claim: {claim_content}
-        
-        Provide external evidence or reasoning that doesn't rely on the claim itself.
-        This should come from outside the circular logic.
-        """
-        
-        response = self.client.models.generate_content(
-            model=llm_model,
-            contents=prompt,
-            config=self.repair_config
-        )
-        
-        return response.text.strip()
-    
-    def _generate_alternatives(self, dichotomous_claim: str) -> str:
-        """Generate alternative options for a false dichotomy"""
-        
-        prompt = f"""
-        This argument contains a false dichotomy:
-        
-        Claim: {dichotomous_claim}
-        
-        Suggest 2-3 alternative options that are being ignored.
-        Be specific and relevant to the context.
-        Format as a single statement acknowledging other possibilities.
-        """
-        
-        response = self.client.models.generate_content(
-            model=llm_model,
-            contents=prompt,
-            config=self.repair_config
-        )
-        
-        return response.text.strip()
-    
-    def _generate_slope_justification(self, slippery_slope_claim: str) -> str:
-        """Generate justification for intermediate steps or suggest removing the extreme comparison"""
-        
-        prompt = f"""
-        This argument contains a slippery slope fallacy:
-        
-        Claim: {slippery_slope_claim}
-        
-        Either:
-        1. Explain what intermediate steps and evidence would be needed to justify this progression, OR
-        2. Suggest removing the extreme comparison and focusing on direct consequences
-        
-        Be specific about what's missing in the logical chain.
-        Format as a single clear statement.
-        """
-        
-        response = self.client.models.generate_content(
-            model=llm_model,
-            contents=prompt,
-            config=self.repair_config
-        )
-        
-        return response.text.strip()
-    
-    def _rank_repairs(self, repairs: List[Repair], argument: Argument, issues: List[Issue]) -> List[Repair]:
-        """Rank repairs based on multiple criteria"""
-        for repair in repairs:
-            scores = {
-                'minimality': self._score_minimality(repair),
-                'plausibility': self._score_plausibility(repair),
-                'relevance': self._score_relevance(repair, issues),
-                'evidence_quality': self._score_evidence_quality(repair)
-            }
-            
-            # Calculate weighted total
-            total_score = sum(scores[k] * self.ranking_weights[k] for k in scores)
-            repair.score = total_score
-            repair.score_breakdown = scores
-        
-        # Sort by score (highest first)
-        repairs.sort(key=lambda r: r.score, reverse=True)
-        return repairs
-    
-    def _score_minimality(self, repair: Repair) -> float:
-        """Score based on repair simplicity (shorter is better)"""
-        if not repair.content:
-            return 0.5
-        length = len(repair.content)
-        if length < 100:
-            return 1.0
-        elif length < 200:
-            return 0.8
-        elif length < 400:
-            return 0.6
-        elif length < 600:
-            return 0.4
-        else:
-            return 0.2
-    
-    def _score_plausibility(self, repair: Repair) -> float:
-        """Score based on repair believability"""
-        # Use confidence as proxy for plausibility
-        # Could enhance with LLM evaluation if needed
-        return repair.confidence
-    
-    def _score_relevance(self, repair: Repair, issues: List[Issue]) -> float:
-        """Score how well repair addresses the issues"""
-        relevance_map = {
-            'missing_link': ['add_premise', 'add_inference'],
-            'unsupported_premise': ['add_premise', 'add_evidence'],
-            'circular': ['add_premise', 'remove_claim'],
-            'false_dichotomy': ['add_premise', 'qualify_claim'],
-            'slippery_slope': ['add_premise', 'remove_claim']
-        }
-        
-        addressed = 0
-        for issue in issues:
-            if issue.type in relevance_map:
-                if repair.type in relevance_map.get(issue.type, []):
-                    addressed += 1
-        
-        return addressed / len(issues) if issues else 0.5
-    
-    def _score_evidence_quality(self, repair: Repair) -> float:
-        """Score quality of evidence in repair"""
-        if not repair.content:
-            return 0.0
-            
-        content_lower = repair.content.lower()
-        
-        # High-quality evidence indicators
-        quality_indicators = [
-            'study', 'research', 'data', 'statistics',
-            'percent', '%', 'university', 'journal',
-            'evidence', 'report', 'analysis'
-        ]
-        
-        # Count indicators (max 1.0)
-        score = sum(0.15 for indicator in quality_indicators 
-                   if indicator in content_lower)
-        
-        # Penalty for vague language
-        if any(word in content_lower for word in ['might', 'could', 'possibly', 'maybe']):
-            score *= 0.8
-            
-        return min(score, 1.0)
 
 class ArgumentDebugger:
     """Main system that combines all components"""
     
-    def __init__(self, debug: bool = False, show_structure: bool = True, generate_repairs: bool = True):
+    def __init__(self, debug: bool = False):
         self.parser = ArgumentParser()
         self.analyzer = ASPDebugger(debug=debug)
-        self.repairer = RepairGenerator()
+        self.repairer = RepairGenerator(debug=debug)
         self.debug = debug
-        self.show_structure = show_structure
-        self.generate_repairs = generate_repairs
     
-    def debug_argument(self, argument_text: str) -> Dict:
+    def _print_structure(self, argument: Argument, label: str = "Parsed structure"):
+        """Helper to print argument structure"""
+        print(f"\n{label}:")
+        for claim in argument.claims:
+            print(f"- {claim.id}: {claim.content} ({claim.type})")
+        for inf in argument.inferences:
+            print(f"- {inf.from_claims} → {inf.to_claim} ({inf.rule_type})")
+    
+    def _print_issues(self, issues: List[Issue]) -> None:
+        """Helper to print issues"""
+        if issues:
+            print(f"\n🔍 ISSUES FOUND ({len(issues)}):")
+            for issue in issues:
+                print(f"  - {issue.type}: {issue.description}")
+        else:
+            print("\n✅ No logical issues found!")
+    
+    def debug_argument(self, argument_text: str, apply_repair: bool = True) -> Dict:
         """Complete debugging pipeline"""
         
         # 1. Parse argument
-        print("Parsing argument...")
+        print("\nParsing argument...")
         argument = self.parser.parse_argument(argument_text)
         
-        if self.show_structure:
-            print("\nParsed structure:")
-            for claim in argument.claims:
-                print(f"- {claim.id}: {claim.content} ({claim.type})")
-            for inf in argument.inferences:
-                print(f"- {inf.from_claims} → {inf.to_claim} ({inf.rule_type})")
-            if hasattr(argument, 'equivalences') and argument.equivalences:
-                print("Equivalences:")
-                for equiv_set in argument.equivalences:
-                    print(f"- {equiv_set} (semantically equivalent)")
-            if hasattr(argument, 'dichotomies') and argument.dichotomies:
-                print("Dichotomies:")
-                for dichot in argument.dichotomies:
-                    justified_str = "justified" if dichot.get('justified') else "unjustified"
-                    print(f"- {dichot.get('id')} ({justified_str})")
+        self._print_structure(argument)
         
         # 2. Analyze for issues
         print("\nAnalyzing logical structure...")
         issues = self.analyzer.analyze(argument)
         
-        # 3. Generate repairs
-        repairs = []
-        if issues and self.generate_repairs:
-            print(f"\nFound {len(issues)} issues. Generating repairs...")
-            repairs = self.repairer.generate_repairs(argument, issues)
-        elif issues:
-            print(f"\nFound {len(issues)} issues.")
+        self._print_issues(issues)
         
-        # 4. Return complete analysis
-        return {
-            "argument": argument,
-            "issues": issues,
-            "repairs": repairs
-        }
+        if not issues:
+            return {"argument": argument, "issues": issues}
+        
+        # 3. Generate and apply repair if requested
+        if apply_repair and issues:
+            print(f"\n🔧 GENERATING REPAIR...")
+            repair, remaining_issues = self.repairer.generate_repair(argument, issues)
+            
+            if repair:
+                print("\nAPPLYING:")
+                if repair.additions:
+                    for addition in repair.additions:
+                        print(f"  ADD: \"{addition}\"")
+                
+                # Apply repair and show full analysis again
+                modified_arg = self.repairer._apply_repair(repair, argument)
+                
+                print("\nAFTER REPAIR:")
+                self._print_structure(modified_arg, "Modified structure")
+                
+                print("\nRe-analyzing logical structure...")
+                self._print_issues(remaining_issues)
+                
+                return {
+                    "argument": argument,
+                    "issues": issues,
+                    "repair": repair,
+                    "modified_argument": modified_arg,
+                    "remaining_issues": remaining_issues
+                }
+        
+        return {"argument": argument, "issues": issues}
 
 def main():
     import sys
@@ -792,8 +705,6 @@ def main():
                        help='Show ASP programs and debug output')
     parser.add_argument('--no-repairs', action='store_true',
                        help='Skip generating repairs (faster, useful for testing)')
-    parser.add_argument('--no-structure', action='store_true',
-                       help='Hide parsed structure output')
     
     args = parser.parse_args()
     
@@ -814,40 +725,15 @@ def main():
         print(f"Error reading file: {e}")
         return
     
-    # Initialize debugger with command-line options
-    debugger = ArgumentDebugger(
-        debug=args.debug,
-        show_structure=not args.no_structure,
-        generate_repairs=not args.no_repairs
-    )
+    # Initialize debugger
+    debugger = ArgumentDebugger(debug=args.debug)
 
     for i, arg_text in enumerate(examples):
         print(f"\n## EXAMPLE {i+1}")
         print("Argument:", arg_text.strip())
         
         try:
-            result = debugger.debug_argument(arg_text)
-            
-            # Display issues
-            if result['issues']:
-                print("\n🔍 ISSUES FOUND:")
-                for issue in result['issues']:
-                    print(f"  - {issue.type}: {issue.description}")
-            else:
-                print("\n✅ No logical issues found!")
-            
-            # Display repairs with ranking
-            if result['repairs']:
-                print("\n🔧 SUGGESTED REPAIRS (ranked):")
-                for i, repair in enumerate(result['repairs'][:3], 1):  # Show top 3
-                    print(f"  {i}. [{repair.type}] Score: {repair.score:.2f}")
-                    print(f"     {repair.description}")
-                    if repair.content:
-                        content = repair.content
-                        print(f"     → \"{content}\"")
-                    if repair.score_breakdown:
-                        scores_str = ", ".join(f"{k}={v:.2f}" for k, v in repair.score_breakdown.items())
-                        print(f"     (Scores: {scores_str})")
+            result = debugger.debug_argument(arg_text, apply_repair=not args.no_repairs)
         
         except Exception as e:
             print(f"Error: {e}")
