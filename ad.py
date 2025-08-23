@@ -376,12 +376,19 @@ class ASPDebugger:
         
         % A claim is supported if:
         % 1. It's a premise without empirical content, OR
-        % 2. It has valid inferences from supported claims
+        % 2. It's an intermediate claim with support, OR
+        % 3. It has valid inferences from supported claims
         basic_premise(C) :- 
             claim(C, "premise"),
             not empirical_claim(C).
+        
+        % Intermediate claims can also serve as support if they have inferences
+        basic_intermediate(C) :-
+            claim(C, "intermediate"),
+            has_inference(C).
             
         supported(C) :- basic_premise(C).
+        supported(C) :- basic_intermediate(C).
         supported(C) :- 
             inference(From, C),
             supported(From).
