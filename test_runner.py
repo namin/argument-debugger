@@ -40,7 +40,7 @@ class TestRunner:
         in_issues_section = False
         
         for line in output.split('\n'):
-            if "ISSUES FOUND:" in line:
+            if "ISSUES FOUND" in line:
                 in_issues_section = True
                 continue
             if in_issues_section and line.strip().startswith("-"):
