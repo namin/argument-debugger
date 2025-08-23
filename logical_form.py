@@ -273,52 +273,46 @@ class LogicalAnalyzer:
 % PATTERN DETECTION RULES
 % ============================================================================
 
-% Helper: Check if inference is from specific statements
+% Helper: check if an inference uses two specific premises (order-insensitive).
 inference_from_both(To, S1, S2) :-
     inference_from(To, S1),
     inference_from(To, S2),
     S1 != S2.
 
-% Detect modus ponens: P→Q, P, therefore Q
-valid_modus_ponens(S1, S2, S3) :-
-    binary(_, S1, "implies", _, _),
-    statement(S2),
-    statement(S3),
-    inference_from_both(S3, S1, S2),
-    inference_pattern(S3, "modus_ponens").
+% ----------------------------------------------------------------------------
+% Valid patterns
+% ----------------------------------------------------------------------------
 
-% Detect modus tollens: P→Q, ¬Q, therefore ¬P
-valid_modus_tollens(S1, S2, S3) :-
-    binary(_, S1, "implies", _, _),
-    negation(_, S2, _),
-    negation(_, S3, _),
-    inference_from_both(S3, S1, S2),
-    inference_pattern(S3, "modus_tollens").
+% Modus Ponens: P→Q, P ⊢ Q
+valid_modus_ponens(Simp, Sprem, Sgoal) :-
+    binary(_, Simp, "implies", _, _),
+    statement(Sprem),
+    statement(Sgoal),
+    inference_from_both(Sgoal, Simp, Sprem),
+    inference_pattern(Sgoal, "modus_ponens").
 
-% Detect affirming consequent: P→Q, Q, therefore P (INVALID!)
-fallacy_affirming_consequent(S1, S2, S3) :-
-    binary(_, S1, "implies", _, _),
-    statement(S2),
-    statement(S3),
-    inference_from_both(S3, S1, S2),
-    inference_pattern(S3, "affirming_consequent").
+% Modus Tollens: P→Q, ¬Q ⊢ ¬P
+valid_modus_tollens(Simp, SnegQ, SnegP) :-
+    binary(_, Simp, "implies", _, _),
+    negation(_, SnegQ, _),
+    negation(_, SnegP, _),
+    inference_from_both(SnegP, Simp, SnegQ),
+    inference_pattern(SnegP, "modus_tollens").
 
-% Detect denying antecedent: P→Q, ¬P, therefore ¬Q (INVALID!)
-fallacy_denying_antecedent(S1, S2, S3) :-
-    binary(_, S1, "implies", _, _),
-    negation(_, S2, _),
-    negation(_, S3, _),
-    inference_from_both(S3, S1, S2),
-    inference_pattern(S3, "denying_antecedent").
+% Universal Instantiation (UI): ∀x (P x → Q x), P c ⊢ Q c
+% Keep 2-arity output (∀-statement, goal) but *require* that the inference
+% cites both the ∀-premise and some instance premise.
+valid_universal_instantiation(Sforall, Sgoal) :-
+    quantifier(_, Sforall, "forall", _, _),
+    statement(Sgoal),
+    inference_from_both(Sgoal, Sforall, Sinst),
+    statement(Sinst),
+    inference_pattern(Sgoal, "universal_instantiation").
 
-% Detect universal instantiation: ∀x P(x), therefore P(a)
-valid_universal_instantiation(S1, S2) :-
-    quantifier(_, S1, "forall", _, _),
-    statement(S2),
-    inference_from(S2, S1),
-    inference_pattern(S2, "universal_instantiation").
+% Universal syllogism / chain:
+% ∀x (A→B), ∀x (B→C) ⊢ ∀x (A→C)
+% Accept both labels by using two rules with the same head.
 
-% Detect syllogism: All A are B, All B are C, therefore All A are C
 valid_syllogism(S1, S2, S3) :-
     quantifier(_, S1, "forall", _, _),
     quantifier(_, S2, "forall", _, _),
@@ -326,40 +320,59 @@ valid_syllogism(S1, S2, S3) :-
     inference_from_both(S3, S1, S2),
     inference_pattern(S3, "syllogism").
 
-% Detect hasty generalization: P(a), therefore ∀x P(x) (INVALID!)
-fallacy_hasty_generalization(S1, S2) :-
-    fol_atom(_, S1, _),
-    has_const(_, _, _),
+valid_syllogism(S1, S2, S3) :-
+    quantifier(_, S1, "forall", _, _),
     quantifier(_, S2, "forall", _, _),
-    inference_from(S2, S1),
-    inference_pattern(S2, "hasty_generalization").
+    quantifier(_, S3, "forall", _, _),
+    inference_from_both(S3, S1, S2),
+    inference_pattern(S3, "hypothetical_syllogism").
 
-% Detect existential generalization: P(a), therefore ∃x P(x) (VALID)
-valid_existential_generalization(S1, S2) :-
-    fol_atom(_, S1, _),
-    quantifier(_, S2, "exists", _, _),
-    inference_from(S2, S1),
-    inference_pattern(S2, "existential_generalization").
+% Existential Generalization (EG): P(c) ⊢ ∃x P(x)
+valid_existential_generalization(Sinst, Sexists) :-
+    fol_atom(_, Sinst, _),
+    quantifier(_, Sexists, "exists", _, _),
+    inference_from(Sexists, Sinst),
+    inference_pattern(Sexists, "existential_generalization").
 
-% Invalid patterns
-invalid_inference(To, "affirming_consequent") :-
-    inference_pattern(To, "affirming_consequent").
+% ----------------------------------------------------------------------------
+% Fallacies
+% ----------------------------------------------------------------------------
 
-invalid_inference(To, "denying_antecedent") :-
-    inference_pattern(To, "denying_antecedent").
+% Affirming the Consequent: P→Q, Q ⊢ P
+fallacy_affirming_consequent(Simp, Sq, Sp) :-
+    binary(_, Simp, "implies", _, _),
+    statement(Sq),
+    statement(Sp),
+    inference_from_both(Sp, Simp, Sq),
+    inference_pattern(Sp, "affirming_consequent").
 
-invalid_inference(To, "hasty_generalization") :-
-    inference_pattern(To, "hasty_generalization").
+% Denying the Antecedent: P→Q, ¬P ⊢ ¬Q
+fallacy_denying_antecedent(Simp, SnegP, SnegQ) :-
+    binary(_, Simp, "implies", _, _),
+    negation(_, SnegP, _),
+    negation(_, SnegQ, _),
+    inference_from_both(SnegQ, Simp, SnegP),
+    inference_pattern(SnegQ, "denying_antecedent").
 
+% Hasty Generalization: P(c) ⊢ ∀x P(x)
+fallacy_hasty_generalization(Sinst, Sforall) :-
+    fol_atom(_, Sinst, _),
+    has_const(_, _, _),
+    quantifier(_, Sforall, "forall", _, _),
+    inference_from(Sforall, Sinst),
+    inference_pattern(Sforall, "hasty_generalization").
+
+% ----------------------------------------------------------------------------
+% Show only specific valid/fallacy predicates (no generic invalid_inference).
+% ----------------------------------------------------------------------------
 #show valid_modus_ponens/3.
 #show valid_modus_tollens/3.
-#show fallacy_affirming_consequent/3.
-#show fallacy_denying_antecedent/3.
 #show valid_universal_instantiation/2.
 #show valid_syllogism/3.
-#show fallacy_hasty_generalization/2.
 #show valid_existential_generalization/2.
-#show invalid_inference/2.
+#show fallacy_affirming_consequent/3.
+#show fallacy_denying_antecedent/3.
+#show fallacy_hasty_generalization/2.
         """
         
         return program

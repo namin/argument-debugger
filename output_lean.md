@@ -9,9 +9,9 @@ Therefore, penguins can fly.
 Extracting logical form...
 
 Logical Structure:
-  s1: ∀x((bird(x) → can_fly(x)))
+  s1: ∀x((bird(x) → flies(x)))
   s2: bird(penguins)
-  s3: can_fly(penguins)
+  s3: flies(penguins)
 
 Inferences:
   ['s1', 's2'] → s3 (universal_instantiation)
@@ -25,7 +25,7 @@ Verifying with Lean...
 
 Lean micro‑verification:
   UI ['s1', 's2'] → s3: Verified ✅
-    artifact: /var/folders/70/m4vcj5vd76bbzsyc_kr0mqr80000gp/T/argdb_lean_ui_99qjx5pj/ui_s3.lean
+    artifact: /var/folders/70/m4vcj5vd76bbzsyc_kr0mqr80000gp/T/argdb_lean_ui_jmrre_ri/ui_s3.lean
 
 # EXAMPLE 2
 If it rains, the ground gets wet.
@@ -35,8 +35,8 @@ Therefore, it rained.
 Extracting logical form...
 
 Logical Structure:
-  s1: (rains() → wet())
-  s2: wet()
+  s1: (rains() → wet_ground())
+  s2: wet_ground()
   s3: rains()
 
 Inferences:
@@ -46,7 +46,6 @@ Analyzing with ASP...
 
 ❌ LOGICAL ISSUES FOUND:
   - Fallacy - Affirming the consequent: [s1, s2] → s3
-  - Invalid inference pattern 'affirming_consequent' for statement s3
 
 Verifying with Lean...
 
@@ -78,7 +77,7 @@ Verifying with Lean...
 
 Lean micro‑verification:
   MT ['s1', 's2'] → s3: Verified ✅
-    artifact: /var/folders/70/m4vcj5vd76bbzsyc_kr0mqr80000gp/T/argdb_lean_mt_2cx0o096/mt_s3.lean
+    artifact: /var/folders/70/m4vcj5vd76bbzsyc_kr0mqr80000gp/T/argdb_lean_mt_vjthgufc/mt_s3.lean
   (nothing to verify for this example)
 
 # EXAMPLE 4
@@ -121,7 +120,9 @@ Inferences:
 
 Analyzing with ASP...
 
-⚠️ No formal logical patterns detected
+✅ VALID INFERENCES:
+  - Valid syllogism: [s1, s2] → s3
+  - Valid syllogism: [s2, s1] → s3
 
 Verifying with Lean...
 
