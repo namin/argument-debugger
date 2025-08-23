@@ -82,11 +82,11 @@ Show Remaining Issues
 - [ad_debate.py](ad_debate.py): analyzes the debate frontier.
 - [logical_form.py](logical_form.py): encoding to First-Order Logic (FOL), with detecting using ASP and certification in Lean. See dedicated [tutorial](TUTORIAL_FOL.md).
 
-## References for Future Work
+## References
 
+- [Datasets](DATASETS.md): datasets we could use
 - [ASP encodings for several semantics and reasoning tasks in Dung AFs](https://www.dbai.tuwien.ac.at/research/argumentation/aspartix/dung.html)
 - [International Competition on Computational Models of Argumentation (ICCMA)](https://www.argumentationcompetition.org/)
 - [ArgDown](https://argdown.org/)
 - [Argunauts: Open LLMs that Master Argument Analysis with Argdown](https://huggingface.co/blog/ggbetz/argunauts-intro)
 - [NL2FOL](https://github.com/lovishchopra/NL2FOL): Translating Natural Language to First-Order Logic for Logical Fallacy Detection
-
