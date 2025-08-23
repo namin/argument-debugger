@@ -301,6 +301,12 @@ Then run:
 python logical_form.py --example N --lean
 ```
 
+or
+
+```bash
+python logical_form.py --file cat_file.txt --lean
+```
+
 If the LLM output labels the inference appropriately, ASP will print the match; Lean will verify when an emitter exists for that pattern.
 
 > Tip: phrasing matters. Prefer crisp, textbook-like sentences for best FOL extraction.
@@ -310,7 +316,7 @@ If the LLM output labels the inference appropriately, ASP will print the match; 
 ## 8) Extending the system
 
 **Add a detection rule (ASP)**
-1. Choose a name like `valid_argument_from_analogy/…` or `fallacy_…`.
+1. Choose a name like `valid_deductive_pattern/…` or `fallacy_…`.
 2. Write a rule that matches your structure (`binary`, `quantifier`, `negation`, etc.).
 3. Add it to the `#show` list so it appears in output.
 4. Update the Python post‑processing to format the message.
@@ -324,16 +330,7 @@ If the LLM output labels the inference appropriately, ASP will print the match; 
 
 ---
 
-## 9) Troubleshooting
-
-- **Lean “not verified” for UI:** check that you have `∀x (P x → Q x)`, both `P/Q` are unary, and the same constant `c` appears in premise and goal.  
-- **Nothing prints for chain check:** there were no eligible implication edges or facts; this is normal.  
-- **Duplicate “invalid” messages:** ensure you’re only `#show`‑ing the specific valid/fallacy predicates (not a generic `invalid_inference/2`).  
-- **LLM misses structure:** nudge phrasing, or post‑edit the JSON to ensure the right pattern label and statements exist.
-
----
-
-## 10) Key design constraints
+## 9) Key design constraints
 
 - **Soundness first:** we don’t conflate multi‑premise steps into single edges for chain proofs.  
 - **Explicit quantifiers:** UI and ∀‑chain rely on the quantifier structure being present in the FOL.  
