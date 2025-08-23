@@ -275,7 +275,7 @@ class ASPDebugger:
                     print(f"Model: {[str(atom) for atom in model.symbols(shown=True)]}")
                 
                 for atom in model.symbols(shown=True):
-                    if atom.name == "missing_link" and not any(i.type == "missing_link" for i in issues):
+                    if atom.name == "missing_link":
                         from_claims = str(atom.arguments[0]).strip('"')
                         to_claim = str(atom.arguments[1]).strip('"')
                         asp_issues.append(Issue(
