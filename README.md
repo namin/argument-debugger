@@ -68,10 +68,6 @@ Show Remaining Issues
   - Checks goal reachability
 
 - **RepairGenerator**: Uses LLM to generate comprehensive fixes
-  - Generates a repair attempting to address all issues
-  - Adds new premises to bridge logical gaps
-  - Provides supporting evidence for unsupported claims
-  - Re-analyzes after repair to show what remains unfixed
 
 - **ArgumentDebugger**: Orchestrates the full pipeline
 
