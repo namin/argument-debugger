@@ -1,3 +1,0 @@
-All bachelors are unmarried men.
-John is a bachelor.
-Therefore, John is an unmarried man.

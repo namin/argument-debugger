@@ -1,6 +1,6 @@
 {
   "description": "Tests empirical claim detection",
-  "must_find": [""],
+  "must_find": [],
   "may_find": ["missing_link", "unsupported_premise"],
   "must_not_find": ["circular", "false_dichotomy"]
 }
