@@ -85,6 +85,7 @@ Show Remaining Issues
 ## References
 
 - [Datasets](DATASETS.md): datasets we could use
+- [_An introduction to argumentation semantics_](https://doi.org/10.1017/S0269888911000166) (2011)
 - [ASP encodings for several semantics and reasoning tasks in Dung AFs](https://www.dbai.tuwien.ac.at/research/argumentation/aspartix/dung.html)
 - [International Competition on Computational Models of Argumentation (ICCMA)](https://www.argumentationcompetition.org/)
 - [ArgDown](https://argdown.org/)
