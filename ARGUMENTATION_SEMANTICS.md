@@ -15,25 +15,27 @@ Key notions on a set of arguments:
 
 Formal definitions:
 - An AF is $⟨A,R⟩$ with arguments $A$ and attacks $R⊆A×A$.
-- For $x∈A$, let $\text{Att}(x)={b∈A∣(b,x)∈R}$ (the attackers of $x$).
+- For $x∈A$, let $\text{Att}(x)=\{b∈A∣(b,x)∈R\}$ (the attackers of $x$).
 - A set $S⊆A$ defends $𝑎$ iff for every $b∈\text{Att}(a)$ there is $c∈S$ with $(c,b)∈R$.
-- The characteristic function: $F(S)={a∈A∣S \text{defends} a}$.
+- The characteristic function: $F(S)=\{a∈A∣S \text{defends} a\}$.
 - The grounded extension is the least fixed point of $F$, obtained by iterating from $∅$: $𝑆_0 = ∅$, $S_{i+1} = F(S_i)$ until $S_{i+1} = S_i$.
 
 Intuition box: starting from nothing, we first accept only arguments that nobody attacks; then, with those in hand, we also accept anything they (as a set) defend, and so on, until nothing changes.
 
 Worked-out Toy AF:
-- $A={A,B,C}$
-- $R={(A,B),(B,C)}$ (i.e., $A→B$ and $B→C$)
+- $A=\{A,B,C\}$
+- $R=\{(A,B),(B,C)\}$ (i.e., $A→B$ and $B→C$)
 
 <details>
-- $F(∅) = {A}$
-- $F({A}) = {A, C}$
-- $F({A,C}) = {A,C}$
-- **Conflict‑free**: $∅,{A},{B},{C},{A,C}$.
-- **Admissible**: $∅,{A},{A,C}$.
-- **Complete**: ${A,C}$,
-- **Grounded**: ${A,C}$.
-- **Preferred**: ${A,C}$.
-- **Stable**: $A∖S={B}$, and $A∈S$ attacks $B$, so $S={A,C}$ is stable.
+  <summary>Properties of Toy AF</summary>
+
+- $F(∅) = {A}$.<br/>
+- $F(\{A\}) = \{A, C\}$.<br/>
+- $F(\{A,C\}) = \{A,C\}$.<br/>
+- **Conflict‑free**: $∅,\{A\},\{B\},\{C\},\{A,C\}$.<br/>
+- **Admissible**: $∅,\{A\},\{A,C\}$.<br/>
+- **Complete**: $\{A,C\}$.<br/>
+- **Grounded**: $\{A,C\}$.<br/>
+- **Preferred**: $\{A,C\}$.<br/>
+- **Stable**: $A∖S=\{B\}$, and $A∈S$ attacks $B$, so $S=\{A,C\}$ is stable.<br/>
 </details>
