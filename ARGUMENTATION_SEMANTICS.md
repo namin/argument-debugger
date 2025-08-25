@@ -29,7 +29,7 @@ Toy AF:
 <details>
   <summary>Worked-out properties of toy AF</summary>
 
-- $F(∅) = {A}$
+- $F(\emptyset) = {A}$
 - $F(\\{A\\}) = \\{A, C\\}$
 - $F(\\{A,C\\}) = \\{A,C\\}$
 - **Conflict‑free**: $∅$, $\\{A\\}$, $\\{B\\}$, $\\{C\\}$, $\\{A,C\\}$
