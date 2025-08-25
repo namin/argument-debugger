@@ -22,12 +22,12 @@ Formal definitions:
 
 Intuition box: starting from nothing, we first accept only arguments that nobody attacks; then, with those in hand, we also accept anything they (as a set) defend, and so on, until nothing changes.
 
-Worked-out Toy AF:
+Toy AF:
 - $A=\\{A,B,C\\}$
 - $R=\\{(A,B),(B,C)\\}$ (i.e., $A→B$ and $B→C$)
 
 <details>
-  <summary>Properties of Toy AF</summary>
+  <summary>Worked-out properties of toy AF</summary>
 
 - $F(∅) = {A}$.<br/>
 - $F(\\{A\\}) = \\{A, C\\}$.<br/>
