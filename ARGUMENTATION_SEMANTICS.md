@@ -17,4 +17,5 @@ Formal definitions:
 - An AF is $⟨A,R⟩$ with arguments $A$ and attacks $R⊆A×A$.
 - For $x∈A$, let $\text{Att}(x)={b∈A∣(b,x)∈R}$ (the attackers of $x$).
 - A set $S⊆A$ defends $𝑎$ iff for every $b∈\text{Att}(a)$ there is $c∈S$ with $(c,b)∈R$.
+- The characteristic function: $F(S)={a∈A∣S \text{defends} a}$.
 - ...
