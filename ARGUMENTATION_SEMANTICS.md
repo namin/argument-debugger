@@ -1,7 +1,7 @@
 # Argumentation Semantics
 
 Argumentation semantics tell us which arguments “survive” in a network where arguments can attack each other.
-Most courses start with Dung’s abstract argumentation frameworks (AFs):
+With Dung’s abstract argumentation frameworks (AFs):
 $\text{AF} = (A, →)$ where $A$ is a set of arguments and $→$ is the attack relation.
 
 Key notions on a set of arguments:
