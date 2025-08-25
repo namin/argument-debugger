@@ -45,7 +45,7 @@ Toy AF bis:
 - $R=\\{(A,B),(B,A)\\}$ (mutual attack)
 
 <details>
-  <summary>Worked-out properties of toy AF</summary>
+  <summary>Worked-out properties of toy AF bis</summary>
 
 - $F(∅) = ∅$
 - **Grounded**: $∅$.
