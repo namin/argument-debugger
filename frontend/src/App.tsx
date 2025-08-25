@@ -112,22 +112,24 @@ export default function App() {
     if (error?.message) {
       const errorMsg = error.message
       
-      // Parse API error responses
-      if (errorMsg.includes("400 Bad Request:") && errorMsg.includes("LLM requested but not available")) {
+      // Check if it's an LLM configuration error (in any format)
+      if (errorMsg.includes("LLM requested but not available") || 
+          errorMsg.includes("Gemini configuration required")) {
         title = "🤖 API Key Required"
         message = "Action requires a Gemini API key.\n\n" +
                  "You can:\n" +
                  "1. Get a free API key: https://aistudio.google.com/app/apikey\n" +
                  "2. Enter it in the 'API Key' field\n" +
                  "3. Try again!"
-      } else if (errorMsg.includes("400 Bad Request:")) {
-        // Extract the detail from the JSON response
+      } else if (errorMsg.includes("400") && errorMsg.includes("{")) {
+        // Extract the detail from JSON response (handles both "400 :" and "400 Bad Request:" formats)
         try {
           const match = errorMsg.match(/{"detail":"([^"]+)"/)
           if (match) {
             message = match[1]
           } else {
-            message = errorMsg.replace("400 Bad Request: ", "")
+            // Fallback: clean up the error message
+            message = errorMsg.replace(/^400[^:]*:\s*/, "")
           }
         } catch {
           message = errorMsg
