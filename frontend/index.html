@@ -28,6 +28,113 @@
       .danger { color: #dc3545; }
       .success { color: #28a745; }
       .warn { color: #ffc107; }
+      
+      /* Modal styles */
+      .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 20px;
+      }
+      
+      .modal-content {
+        background: #ffffff;
+        border-radius: 16px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        max-width: 500px;
+        width: 100%;
+        max-height: 80vh;
+        overflow: hidden;
+        animation: modalSlideIn 0.2s ease-out;
+      }
+      
+      @keyframes modalSlideIn {
+        from {
+          opacity: 0;
+          transform: scale(0.95) translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1) translateY(0);
+        }
+      }
+      
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 24px 16px;
+        border-bottom: 1px solid #e0e0e0;
+      }
+      
+      .modal-title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        color: #1a1a1a;
+      }
+      
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        color: #666;
+        cursor: pointer;
+        padding: 0;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        transition: background-color 0.2s;
+      }
+      
+      .modal-close:hover {
+        background: #f0f0f0;
+      }
+      
+      .modal-body {
+        padding: 16px 24px;
+        white-space: pre-wrap;
+        line-height: 1.5;
+        color: #333;
+        max-height: 400px;
+        overflow-y: auto;
+      }
+      
+      .modal-footer {
+        padding: 16px 24px 20px;
+        display: flex;
+        justify-content: flex-end;
+        border-top: 1px solid #e0e0e0;
+      }
+      
+      /* Mobile responsive */
+      @media (max-width: 640px) {
+        .modal-backdrop {
+          padding: 16px;
+        }
+        
+        .modal-content {
+          max-width: none;
+          width: 100%;
+        }
+        
+        .modal-header,
+        .modal-body,
+        .modal-footer {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+      }
     </style>
   </head>
   <body>

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react"
 import Graph from "./components/Graph"
 import MarkdownDisplay from "./components/MarkdownDisplay"
+import Modal from "./components/Modal"
 import Winners, { WinnersState, WinnersResult } from "./components/Winners";
 import { runSemantics, runRepair, runWinners as runWinnersAPI, RunRequest, RepairRequest, WinnersRequest } from "./api"
 
@@ -45,6 +46,17 @@ export default function App() {
     loading: false,
     resp: null,
     error: null
+  })
+
+  // Modal state for custom alerts
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
   })
 
   const nodes = resp?.nodes || []
@@ -95,13 +107,15 @@ export default function App() {
 
   function handleError(error: any) {
     let message = "An unexpected error occurred."
+    let title = "Error"
     
     if (error?.message) {
       const errorMsg = error.message
       
       // Parse API error responses
       if (errorMsg.includes("400 Bad Request:") && errorMsg.includes("LLM requested but not available")) {
-        message = "🤖 Action requires a Gemini API key.\n\n" +
+        title = "🤖 API Key Required"
+        message = "Action requires a Gemini API key.\n\n" +
                  "You can:\n" +
                  "1. Get a free API key: https://aistudio.google.com/app/apikey\n" +
                  "2. Enter it in the 'API Key' field\n" +
@@ -123,11 +137,19 @@ export default function App() {
       }
     }
     
-    alert(message)
+    setModalState({
+      isOpen: true,
+      title,
+      message,
+    })
   }
 
   function updateWinnersState(updates: Partial<WinnersState>) {
     setWinnersState(prev => ({ ...prev, ...updates }));
+  }
+
+  function closeModal() {
+    setModalState(prev => ({ ...prev, isOpen: false }));
   }
 
   async function runWinners(params: {
@@ -330,6 +352,14 @@ export default function App() {
       <div style={{marginTop:12}} className="small">
         Tip: In <b>auto</b>, if you get zero edges, try lowering jaccard/minOverlap or enable <b>use‑LLM</b>.
       </div>
+
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        title={modalState.title}
+      >
+        {modalState.message}
+      </Modal>
     </div>
   )
 }
