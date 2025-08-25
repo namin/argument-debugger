@@ -83,7 +83,7 @@ export default function App() {
   const newClaims = repairResult?.new_claims?.join("\n\n")
 
   return (
-    <div style={{ padding: 16, maxWidth: 1200, margin: "0 auto" }}>
+      <div style={{ padding: 16, maxWidth: 1200, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <div className="row" style={{ justifyContent: "space-between" }}>
         <h2 style={{ margin: 0 }}>🧭 Argumentation Semantics Playground</h2>
         <div className="row">
@@ -95,7 +95,7 @@ export default function App() {
         </div>
       </div>
 
-      <div className="grid-2" style={{ marginTop: 12 }}>
+      <div className="grid-2" style={{ marginTop: 12, flex: 1, minHeight: 0 }}>
         <div className="panel">
           <div className="section-title">Input arguments.txt</div>
           <textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Paste or type your argument blocks here..." />
