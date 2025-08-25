@@ -27,11 +27,15 @@ function EdgesDisplay({ attacks, meta }: {
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontSize: '12px', opacity: 0.7, marginBottom: 6 }}>
-        {attacks.length} attack{attacks.length !== 1 ? 's' : ''} 
-        {explicitCount > 0 && ` (${explicitCount} explicit`}
-        {heuristicCount > 0 && `, ${heuristicCount} heuristic`}
-        {llmCount > 0 && `, ${llmCount} LLM`}
-        {(explicitCount > 0 || heuristicCount > 0 || llmCount > 0) && ')'}
+      {attacks.length} attack{attacks.length !== 1 ? 's' : ''}
+        {(() => {
+          const breakdown = [
+            explicitCount > 0 && `${explicitCount} explicit`,
+            heuristicCount > 0 && `${heuristicCount} heuristic`, 
+            llmCount > 0 && `${llmCount} LLM`
+          ].filter(Boolean).join(', ');
+          return breakdown ? ` (${breakdown})` : '';
+        })()}
       </div>
       <div style={{ 
         display: 'flex', 
