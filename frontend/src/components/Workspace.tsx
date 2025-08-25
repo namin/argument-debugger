@@ -11,6 +11,50 @@ type SemanticsPayload = {
   semi_stable: string[][];
 };
 
+// Component to display AF edges/attacks
+function EdgesDisplay({ attacks, meta }: { 
+  attacks: [string, string][]; 
+  meta: { explicit_edges?: any[]; heuristic_edges?: any[]; llm_edges?: any[] } 
+}) {
+  if (!attacks.length) {
+    return <div className="muted">No attacks found.</div>;
+  }
+
+  const explicitCount = meta.explicit_edges?.length ?? 0;
+  const heuristicCount = meta.heuristic_edges?.length ?? 0;
+  const llmCount = meta.llm_edges?.length ?? 0;
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: '12px', opacity: 0.7, marginBottom: 6 }}>
+        {attacks.length} attack{attacks.length !== 1 ? 's' : ''} 
+        {explicitCount > 0 && ` (${explicitCount} explicit`}
+        {heuristicCount > 0 && `, ${heuristicCount} heuristic`}
+        {llmCount > 0 && `, ${llmCount} LLM`}
+        {(explicitCount > 0 || heuristicCount > 0 || llmCount > 0) && ')'}
+      </div>
+      <div style={{ 
+        display: 'flex', 
+        flexWrap: 'wrap', 
+        gap: 6, 
+        fontSize: '12px',
+        fontFamily: 'ui-monospace, monospace' 
+      }}>
+        {attacks.map(([src, dst], i) => (
+          <span key={i} style={{ 
+            background: '#f0f0f0', 
+            padding: '2px 6px', 
+            borderRadius: 4,
+            border: '1px solid #ddd'
+          }}>
+            {src} → {dst}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Workspace({
   text,
   onTextChange,
@@ -58,6 +102,8 @@ export default function Workspace({
 
   const ids: string[] = af?.input?.ids ?? [];
   const id2atom: Record<string, string> = af?.input?.id2atom ?? {};
+  const attacks: [string, string][] = af?.input?.attacks ?? [];
+  const meta = af?.input?.meta ?? {};
   const semantics: SemanticsPayload | undefined = af?.semantics;
 
   return (
@@ -115,8 +161,15 @@ export default function Workspace({
       <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
         <div className="section-title">Semantics snapshot</div>
         <div className="card scroll">
-          {semantics ? (
-            <SemanticsTable ids={ids} id2atom={id2atom} semantics={semantics} />
+          {af ? (
+            <>
+              <EdgesDisplay attacks={attacks} meta={meta} />
+              {semantics ? (
+                <SemanticsTable ids={ids} id2atom={id2atom} semantics={semantics} />
+              ) : (
+                <div className="muted">Semantics computation failed.</div>
+              )}
+            </>
           ) : (
             <div className="muted">No analysis yet.</div>
           )}
