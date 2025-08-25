@@ -1,0 +1,57 @@
+:root {
+  --bg: #fafafa;
+  --fg: #111;
+  --muted: #6b7280;
+  --accent: #4f46e5;
+  --line: #e5e7eb;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.app { height: 100%; display: flex; flex-direction: column; }
+.appbar {
+  height: 48px; display: flex; align-items: center; gap: 12px;
+  padding: 0 12px; border-bottom: 1px solid var(--line); background: #fff;
+}
+.brand { font-weight: 600; }
+.spacer { flex: 1; }
+.link { color: var(--accent); text-decoration: none; }
+
+.main { flex: 1; min-height: 0; padding: 12px; }
+
+.workspace.two-col {
+  display: grid;
+  grid-template-columns: minmax(380px, 1fr) 1fr;
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+}
+
+.left-col, .right-col { display: flex; flex-direction: column; min-height: 0; }
+
+.toolbar {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 8px; font-size: 14px;
+}
+
+.editor {
+  flex: 1; min-height: 0; resize: none;
+  border: 1px solid var(--line); border-radius: 6px; padding: 10px;
+  font-family: var(--mono); font-size: 14px; line-height: 1.35; background: #fff;
+}
+
+.card {
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px; background: #fff;
+}
+
+.scroll { flex: 1; min-height: 0; overflow: auto; }
+
+.code { font-family: var(--mono); font-size: 13px; white-space: pre-wrap; }
+
+.muted { color: var(--muted); }
+.error { color: #d14343; }
