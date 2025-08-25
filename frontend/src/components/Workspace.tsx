@@ -118,7 +118,7 @@ export default function Workspace({
           {semantics ? (
             <SemanticsTable ids={ids} id2atom={id2atom} semantics={semantics} />
           ) : (
-            <div className="muted">No AF yet.</div>
+            <div className="muted">No analysis yet.</div>
           )}
         </div>
 
