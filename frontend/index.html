@@ -22,7 +22,20 @@
       .tab.active { background:#4653ff; border-color:#4653ff; color: white; }
       .grid-2 { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 12px; }
       .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#f0f0f0; border:1px solid #d0d0d0; font-size:12px; margin-right:6px;}
-      .code { background:#f8f9fa; border:1px solid #e0e0e0; border-radius:10px; padding:10px; overflow:auto; }
+      .code { background:#f8f9fa; border:1px solid #e0e0e0; border-radius:10px; padding:10px; overflow:auto; word-wrap: break-word; overflow-wrap: break-word; }
+      
+      /* Force text wrapping in SyntaxHighlighter */
+      .code pre,
+      .code code,
+      .code pre[class*="language-"],
+      .code code[class*="language-"] {
+        white-space: pre-wrap !important;
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+        overflow: hidden !important;
+        width: 100% !important;
+        max-width: 100% !important;
+      }
       .small { opacity:.75; font-size: 12px; }
       .section-title { font-weight:600; margin: 12px 0 6px; }
       .danger { color: #dc3545; }

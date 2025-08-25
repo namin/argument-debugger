@@ -20,7 +20,7 @@ const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
     .replace(/\\r/g, '\r');
 
   return (
-    <div className={className} style={style}>
+    <div className={className} style={{...style, position: 'relative'}}>
       <SyntaxHighlighter
         language="markdown"
         style={{
@@ -28,14 +28,21 @@ const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
           'code[class*="language-"]': {
             ...oneLight['code[class*="language-"]'],
             fontSize: '13px',
-            lineHeight: '1.5'
+            lineHeight: '1.5',
+            whiteSpace: 'pre-wrap',
+            wordWrap: 'break-word',
+            overflowWrap: 'break-word'
           },
           'pre[class*="language-"]': {
             ...oneLight['pre[class*="language-"]'],
             fontSize: '13px',
             lineHeight: '1.5',
             margin: 0,
-            padding: '12px'
+            padding: '12px',
+            whiteSpace: 'pre-wrap',
+            wordWrap: 'break-word',
+            overflowWrap: 'break-word',
+            overflow: 'hidden'
           },
           // Override inline code styling to be less intrusive
           '.token.code': {
@@ -51,11 +58,40 @@ const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
           fontSize: '13px',
           borderRadius: '8px',
           padding: '12px',
-          lineHeight: '1.5'
+          lineHeight: '1.5',
+          whiteSpace: 'pre-wrap',
+          wordWrap: 'break-word',
+          overflowWrap: 'break-word',
+          overflow: 'hidden',
+          width: '100%',
+          maxWidth: '100%'
         }}
         showLineNumbers={false}
         wrapLines={true}
         wrapLongLines={true}
+        PreTag={({children, ...props}) => (
+          <pre {...props} style={{
+            ...props.style,
+            whiteSpace: 'pre-wrap',
+            wordWrap: 'break-word',
+            overflowWrap: 'break-word',
+            overflow: 'hidden',
+            width: '100%',
+            maxWidth: '100%'
+          }}>
+            {children}
+          </pre>
+        )}
+        CodeTag={({children, ...props}) => (
+          <code {...props} style={{
+            ...props.style,
+            whiteSpace: 'pre-wrap',
+            wordWrap: 'break-word',
+            overflowWrap: 'break-word'
+          }}>
+            {children}
+          </code>
+        )}
       >
         {processedContent}
       </SyntaxHighlighter>
