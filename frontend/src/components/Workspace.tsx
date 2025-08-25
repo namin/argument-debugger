@@ -180,7 +180,7 @@ export default function Workspace({
         </div>
 
         <div className="section-title" style={{ marginTop: 12 }}>
-          Winners (ad.py) — deep dive
+          Winners
         </div>
         <div className="card scroll">
           <Winners value={text} defaultWinners="stable" />
