@@ -53,7 +53,7 @@ export default function App() {
   const extraction = resp?.insights?.extraction
 
   async function onRun() {
-    setLoading(true); setActiveTab("overview"); setRepairResult(null)
+    setLoading(true); setRepairResult(null)
     try {
       const body: RunRequest = {
         text, relation, use_llm: useLLM, llm_mode: llmMode,
@@ -67,7 +67,7 @@ export default function App() {
   }
 
   async function onRepair() {
-    setLoading(true); setActiveTab("overview")
+    setLoading(true)
     try {
       const body: RepairRequest = {
         text, relation, use_llm: useLLM, llm_mode: llmMode,
@@ -79,7 +79,6 @@ export default function App() {
       setRepairResult(out)
       // also refresh baseline run panel from the result.before
       if (out?.before) setResp(out.before)
-      setActiveTab("graph")
     } catch (e:any) {
       handleError(e)
     } finally { setLoading(false) }
