@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react"
 import Graph from "./components/Graph"
+import MarkdownDisplay from "./components/MarkdownDisplay"
 import { runSemantics, runRepair, RunRequest, RepairRequest } from "./api"
 
 const SAMPLE = `ID: A1
@@ -205,9 +206,10 @@ export default function App() {
           )}
 
           {activeTab === "markdown" && (
-            <div className="code" style={{whiteSpace:"pre-wrap"}}>
-              {repairResult?.markdown?.integrated || resp?.markdown || "(no markdown)"}
-            </div>
+            <MarkdownDisplay 
+              content={repairResult?.markdown?.integrated || resp?.markdown || "(no markdown)"}
+              style={{whiteSpace:"pre-wrap"}}
+            />
           )}
 
           {activeTab === "json" && (

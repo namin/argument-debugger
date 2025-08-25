@@ -25,9 +25,9 @@ const Graph: React.FC<Props> = ({ nodes, edges, highlightId }) => {
     const style: Stylesheet[] = [
       { selector: "node",
         style: {
-          "background-color": "#4653ff",
+          "background-color": "#e3f2fd",
           "label": "data(label)",
-          "color": "#e8ebf2",
+          "color": "#1565c0",
           "text-valign": "center",
           "text-halign": "center",
           "font-size": "11px",
@@ -35,21 +35,29 @@ const Graph: React.FC<Props> = ({ nodes, edges, highlightId }) => {
           "height": "label",
           "padding": "8px",
           "shape": "round-rectangle",
-          "border-width": 1,
-          "border-color": "#2b3560"
+          "border-width": 2,
+          "border-color": "#1976d2"
         }
       },
       { selector: "node[grounded = 1]",
-        style: { "background-color": "#4ae39b" }
+        style: { 
+          "background-color": "#e8f5e8", 
+          "color": "#2e7d32",
+          "border-color": "#4caf50"
+        }
       },
       { selector: "node.highlight",
-        style: { "border-width": 3, "border-color": "#ffd166" }
+        style: { 
+          "border-width": 3, 
+          "border-color": "#ff9800",
+          "background-color": "#fff3e0"
+        }
       },
       { selector: "edge",
         style: {
-          "line-color": "#99a1c7",
+          "line-color": "#90a4ae",
           "width": 2,
-          "target-arrow-color": "#99a1c7",
+          "target-arrow-color": "#90a4ae",
           "target-arrow-shape": "triangle",
           "curve-style": "bezier"
         }
@@ -82,7 +90,7 @@ const Graph: React.FC<Props> = ({ nodes, edges, highlightId }) => {
     return () => { cy.destroy() }
   }, [nodes, edges, highlightId])
 
-  return <div ref={ref} style={{ width: "100%", maxWidth: "100%", height: "480px", borderRadius: 12, border: "1px solid #1f2a44", background:"#0e1426", overflow: "hidden", boxSizing: "border-box" }} />
+  return <div ref={ref} style={{ width: "100%", maxWidth: "100%", height: "480px", borderRadius: 12, border: "1px solid #e0e0e0", background:"#ffffff", overflow: "hidden", boxSizing: "border-box" }} />
 }
 
 export default Graph
