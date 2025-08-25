@@ -32,17 +32,12 @@ import re
 from typing import Dict, List, Set, Tuple, Optional
 
 # ---------------------------
-# Optional Gemini client (mirrors ad.py setup)
+# LLM client and Pydantic imports
 # ---------------------------
-_HAVE_LLM = False
-_HAVE_PYDANTIC = False
-try:
-    from google import genai
-    from google.genai import types
-    _HAVE_LLM = True
-except Exception:
-    _HAVE_LLM = False
+from llm import init_llm_client, is_llm_available, get_llm_model
 
+_HAVE_LLM = is_llm_available()
+_HAVE_PYDANTIC = False
 try:
     from pydantic import BaseModel, Field
     _HAVE_PYDANTIC = True
@@ -53,21 +48,13 @@ except Exception:
     def Field(*args, **kwargs):
         return None
 
-LLM_MODEL = "gemini-2.5-flash"
+# Import types for LLM configuration if available
+try:
+    from google.genai import types
+except ImportError:
+    types = None
 
-def init_llm_client():
-    import os
-    if not _HAVE_LLM:
-        raise RuntimeError("google.genai not available; install or omit --use-llm.")
-    gemini_api_key = os.getenv('GEMINI_API_KEY')
-    google_cloud_project = os.getenv('GOOGLE_CLOUD_PROJECT')
-    google_cloud_location = os.getenv('GOOGLE_CLOUD_LOCATION', "us-central1")
-    if gemini_api_key:
-        return genai.Client(api_key=gemini_api_key)
-    elif google_cloud_project:
-        return genai.Client(vertexai=True, project=google_cloud_project, location=google_cloud_location)
-    else:
-        raise ValueError("Set GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT to use --use-llm.")
+LLM_MODEL = get_llm_model()
 
 # ---------------------------
 # Parsing utilities

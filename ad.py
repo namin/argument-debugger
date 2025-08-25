@@ -7,7 +7,6 @@ import json
 import clingo
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
-from google import genai
 from google.genai import types
 import os
 from pydantic import BaseModel, Field
@@ -100,17 +99,9 @@ class Issue:
     description: str
     involved_claims: List[str]
 
-llm_model = "gemini-2.5-flash"
-def init_llm_client():
-    gemini_api_key = os.getenv('GEMINI_API_KEY')
-    google_cloud_project = os.getenv('GOOGLE_CLOUD_PROJECT')
-    google_cloud_location = os.getenv('GOOGLE_CLOUD_LOCATION', "us-central1")
-    if gemini_api_key:
-        return genai.Client(api_key=gemini_api_key)
-    elif google_cloud_project:
-        return genai.Client(vertexai=True, project=google_cloud_project, location=google_cloud_location)
-    else:
-        raise ValueError("Gemini configuration required. Set GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT environment variables.")
+from llm import init_llm_client, get_llm_model
+
+llm_model = get_llm_model()
 
 class ArgumentParser:
     """Uses language model to parse natural language arguments into formal structure"""

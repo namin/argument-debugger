@@ -8,11 +8,10 @@ import json
 import clingo
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple, Literal
-from google import genai
 from google.genai import types
 import os
 from pydantic import BaseModel, Field
-from ad import init_llm_client  # Import from ad.py
+from llm import init_llm_client
 
 # ============================================================================
 # PYDANTIC MODELS

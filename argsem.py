@@ -34,28 +34,18 @@ import nl2apx
 import af_clingo
 
 # -------- Optional LLM support (Gemini), graceful fallback --------
-_HAVE_GENAI = False
+from llm import get_llm_client_or_none, is_llm_available, get_llm_model
+
+_HAVE_GENAI = is_llm_available()
+
+# Import types for LLM configuration if available
 try:
-    from google import genai
     from google.genai import types
-    _HAVE_GENAI = True
-except Exception:
-    _HAVE_GENAI = False
+except ImportError:
+    types = None
 
 def _llm_client_or_none():
-    if not _HAVE_GENAI:
-        return None
-    try:
-        api = os.getenv("GEMINI_API_KEY")
-        proj = os.getenv("GOOGLE_CLOUD_PROJECT")
-        loc  = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
-        if api:
-            return genai.Client(api_key=api)
-        if proj:
-            return genai.Client(vertexai=True, project=proj, location=loc)
-    except Exception:
-        return None
-    return None
+    return get_llm_client_or_none()
 
 def _short(s: str, n: int = 140) -> str:
     s1 = " ".join(str(s).split())

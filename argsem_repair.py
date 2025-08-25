@@ -46,28 +46,18 @@ import nl2apx
 import af_clingo
 
 # ---- Optional Gemini client (same pattern as ad.py) ----
-_HAVE_LLM = False
+from llm import get_llm_client_or_none, is_llm_available
+
+_HAVE_LLM = is_llm_available()
+
+# Import types for LLM configuration if available
 try:
-    from google import genai
     from google.genai import types
-    _HAVE_LLM = True
-except Exception:
-    _HAVE_LLM = False
+except ImportError:
+    types = None
 
 def init_llm_client():
-    if not _HAVE_LLM:
-        return None
-    gemini_api_key = os.getenv('GEMINI_API_KEY')
-    google_cloud_project = os.getenv('GOOGLE_CLOUD_PROJECT')
-    google_cloud_location = os.getenv('GOOGLE_CLOUD_LOCATION', "us-central1")
-    try:
-        if gemini_api_key:
-            return genai.Client(api_key=gemini_api_key)
-        elif google_cloud_project:
-            return genai.Client(vertexai=True, project=google_cloud_project, location=google_cloud_location)
-    except Exception:
-        return None
-    return None
+    return get_llm_client_or_none()
 
 # ---- AF helpers ----
 

@@ -3,7 +3,7 @@
 Baseline single-shot argument debugger for comparison with multi-step approach
 """
 
-from ad import init_llm_client
+from llm import init_llm_client
 from pydantic import BaseModel, Field
 from typing import List, Dict
 from google.genai import types

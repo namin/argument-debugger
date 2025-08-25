@@ -9,7 +9,7 @@ Logical Form Analyzer
 import clingo
 from logical_form_core import lf_to_core
 from lean_bridge import Subgoal, verify_with_lean, verify_ui_with_lean, verify_mt_with_lean, verify_all_chain_with_lean
-from ad import init_llm_client
+from llm import init_llm_client
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Literal, Union
 from google.genai import types
