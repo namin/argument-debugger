@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react"
 import Graph from "./components/Graph"
 import MarkdownDisplay from "./components/MarkdownDisplay"
+import Winners, { WinnersState } from "./components/Winners";
 import { runSemantics, runRepair, RunRequest, RepairRequest } from "./api"
 
 const SAMPLE = `ID: A1
@@ -27,7 +28,7 @@ export default function App() {
   const [llmMode, setLLMMode] = useState<"augment"|"override">("augment")
   const [jaccard, setJaccard] = useState(0.45)
   const [minOverlap, setMinOverlap] = useState(3)
-  const [activeTab, setActiveTab] = useState<"overview"|"graph"|"markdown"|"json">("overview")
+  const [activeTab, setActiveTab] = useState<"overview"|"graph"|"markdown"|"json"|"winners">("overview")
   const [loading, setLoading] = useState(false)
   const [resp, setResp] = useState<RunResponse | null>(null)
 
@@ -36,6 +37,15 @@ export default function App() {
   const [repairMinCov, setRepairMinCov] = useState<number | undefined>(undefined)
   const [repairResult, setRepairResult] = useState<any | null>(null)
   const [apiKey, setApiKey] = useState<string>("")
+  const [winnersState, setWinnersState] = useState<WinnersState>({
+    sem: "stable",
+    useLLM: false,
+    repair: false,
+    limit: 5,
+    loading: false,
+    resp: null,
+    error: null
+  })
 
   const nodes = resp?.nodes || []
   const edges = resp?.edges || []
@@ -115,6 +125,54 @@ export default function App() {
     }
     
     alert(message)
+  }
+
+  function updateWinnersState(updates: Partial<WinnersState>) {
+    setWinnersState(prev => ({ ...prev, ...updates }));
+  }
+
+  async function runWinners(params: {
+    text: string;
+    sem: string;
+    useLLM: boolean;
+    repair: boolean;
+    limit: number;
+  }) {
+    setWinnersState(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json"
+      };
+      
+      if (apiKey) {
+        headers["X-Gemini-API-Key"] = apiKey;
+      }
+      
+      const API_BASE = (import.meta as any).env?.VITE_API_BASE || "http://localhost:8000";
+      const r = await fetch(`${API_BASE}/api/ad/winners`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          text: params.text,
+          relation: "auto",
+          use_llm: params.useLLM,
+          llm_mode: "augment",
+          llm_threshold: 0.55,
+          winners: params.sem,
+          limit_stances: params.limit,
+          repair_stance: params.repair,
+        })
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      setWinnersState(prev => ({ ...prev, resp: j, loading: false }));
+    } catch (e: any) {
+      setWinnersState(prev => ({ 
+        ...prev, 
+        error: e?.message || "Request failed", 
+        loading: false 
+      }));
+    }
   }
 
   return (
@@ -201,6 +259,7 @@ export default function App() {
           <div className="tabs">
             <div className={`tab ${activeTab==='overview'?'active':''}`} onClick={()=>setActiveTab('overview')}>Overview</div>
             <div className={`tab ${activeTab==='graph'?'active':''}`} onClick={()=>setActiveTab('graph')}>Graph</div>
+            <div className={`tab ${activeTab==='winners'?'active':''}`} onClick={()=>setActiveTab('winners')}>Winners</div>
             <div className={`tab ${activeTab==='markdown'?'active':''}`} onClick={()=>setActiveTab('markdown')}>Markdown</div>
             <div className={`tab ${activeTab==='json'?'active':''}`} onClick={()=>setActiveTab('json')}>JSON</div>
           </div>
@@ -259,6 +318,15 @@ export default function App() {
                 </div>
               )}
             </div>
+          )}
+
+          {activeTab === "winners" && (
+            <Winners 
+              value={text} 
+              winnersState={winnersState}
+              onUpdateWinnersState={updateWinnersState}
+              onRunWinners={runWinners}
+            />
           )}
 
           {activeTab === "markdown" && (

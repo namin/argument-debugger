@@ -27,6 +27,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from server_winners_router import router as winners_router
+
 # Try to import toolkit modules (must be present)
 try:
     import nl2apx
@@ -179,6 +181,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(winners_router, prefix="/api/ad")
 
 # ---------------- Core handlers ----------------
 @app.post("/api/run")
