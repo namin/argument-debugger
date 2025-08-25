@@ -109,9 +109,12 @@ def jaccard(a: Set[str], b: Set[str]) -> float:
     union = len(a | b)
     return 0.0 if union == 0 else inter / union
 
-def parse_blocks(path: str) -> List[str]:
+def parse_blocks_text(path: str) -> List[str]:
     with open(path, "r", encoding="utf-8") as f:
         raw = f.read()
+    return parse_blocks_text(raw)
+
+def parse_blocks_text(raw: str) -> List[str]:
     # Normalize line endings and split on blank lines (incl. spaces)
     raw = raw.replace("\r\n", "\n").replace("\r", "\n").strip()
     blocks = re.split(r"(?:\n\s*\n)+", raw)

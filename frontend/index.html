@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Argumentation Semantics Playground</title>
+    <style>
+      html, body, #root { height: 100%; margin: 0; }
+      body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background: #0b1020; color: #e8ebf2;}
+      .btn { background: #4653ff; border: none; color: white; padding: 10px 14px; border-radius: 10px; cursor: pointer; }
+      .btn.secondary { background: #24293a; }
+      .btn:disabled { opacity: .6; cursor: not-allowed; }
+      .panel { background: #12182b; border: 1px solid #1f2a44; border-radius: 12px; padding: 12px; }
+      .grid { display: grid; gap: 12px; }
+      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      textarea { width: 100%; min-height: 200px; background: #0e1426; color: #e8ebf2; border: 1px solid #1f2a44; border-radius: 10px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;}
+      select, input[type="text"], input[type="number"] { background: #0e1426; color: #e8ebf2; border: 1px solid #1f2a44; border-radius: 8px; padding: 8px; }
+      .tabs { display:flex; gap:6px; margin: 8px 0; }
+      .tab { padding: 8px 10px; border-radius: 8px; background:#0e1426; border: 1px solid #1f2a44; cursor: pointer; }
+      .tab.active { background:#4653ff; border-color:#4653ff; color: white; }
+      .grid-2 { display: grid; grid-template-columns: 1.1fr 1fr; gap: 12px; }
+      .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#1a2036; border:1px solid #263150; font-size:12px; margin-right:6px;}
+      .code { background:#0e1426; border:1px solid #1f2a44; border-radius:10px; padding:10px; overflow:auto; }
+      .small { opacity:.85; font-size: 12px; }
+      .section-title { font-weight:600; margin: 12px 0 6px; }
+      .danger { color: #ff6b6b; }
+      .success { color: #4ae39b; }
+      .warn { color: #ffd166; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
