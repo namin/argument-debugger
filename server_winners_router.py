@@ -207,8 +207,7 @@ def _md_winners_report(sem_mode: str, ids, id2text, id2atom, meta, stances):
                     cl = it.get("claims") or []
                     annot = []
                     for cid in cl:
-                        txt = _preview(cmap.get(cid,""))
-                        annot.append(f"`{cid}` — “{_md_escape(txt)}”")
+                        annot.append(f"`{cid}`")
                     ann = "; ".join(annot) if annot else "(no specific claims)"
                     lines.append(f"- {it['description']} {ann}")
 
@@ -218,7 +217,6 @@ def _md_winners_report(sem_mode: str, ids, id2text, id2atom, meta, stances):
             lines.append("")
             lines.append("**Repair commentary (excerpt)**")
             comm = rep["commentary"].strip()
-            if len(comm) > 600: comm = comm[:600] + "…"
             lines.append(comm)
 
         lines.append("")
