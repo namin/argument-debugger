@@ -1,59 +1,66 @@
-// frontend/src/components/Winners.tsx
-import React from "react";
-import MarkdownDisplay from "./MarkdownDisplay";
+import React, { useState } from "react";
 
-export type WinnersResult = {
+type WinnersResult = {
   markdown?: string;
   stances?: any[];
   meta?: any;
 };
 
-export type WinnersState = {
-  sem: "preferred"|"stable"|"grounded"|"complete"|"stage"|"semi-stable";
-  useLLM: boolean;
-  repair: boolean;
-  limit: number;
-  loading: boolean;
-  resp: WinnersResult | null;
-  error: string | null;
-};
-
-interface WinnersProps {
-  value: string;
-  winnersState: WinnersState;
-  onUpdateWinnersState: (updates: Partial<WinnersState>) => void;
-  onRunWinners: (params: {
-    text: string;
-    sem: string;
-    useLLM: boolean;
-    repair: boolean;
-    limit: number;
-  }) => Promise<void>;
-}
-
 export default function Winners({
   value,
-  winnersState,
-  onUpdateWinnersState,
-  onRunWinners
-}: WinnersProps) {
-  const { sem, useLLM, repair, limit, loading, resp, error } = winnersState;
+  defaultWinners = "preferred",
+}: {
+  value: string;
+  defaultWinners?:
+    | "preferred"
+    | "stable"
+    | "grounded"
+    | "complete"
+    | "stage"
+    | "semi-stable";
+}) {
+  const [sem, setSem] = useState(defaultWinners);
+  const [useLLM, setUseLLM] = useState(false);
+  const [repair, setRepair] = useState(false);
+  const [limit, setLimit] = useState(5);
+  const [loading, setLoading] = useState(false);
+  const [resp, setResp] = useState<WinnersResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function run() {
-    await onRunWinners({
-      text: value,
-      sem,
-      useLLM,
-      repair,
-      limit
-    });
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/ad/winners", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: value,
+          relation: "auto",
+          use_llm: useLLM,
+          llm_mode: "augment",
+          llm_threshold: 0.55,
+          winners: sem,
+          limit_stances: limit,
+          repair_stance: repair,
+        }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      setResp(j);
+    } catch (e: any) {
+      setError(e?.message || "Request failed");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <div className="panel" style={{display:"flex", flexDirection:"column", minHeight: 0}}>
-      <div style={{display:"flex", gap:12, flexWrap:"wrap", alignItems:"center"}}>
-        <label>Semantics:&nbsp;
-          <select value={sem} onChange={e=>onUpdateWinnersState({sem: e.target.value as any})}>
+    <div className="panel">
+      <div className="toolbar">
+        <label>
+          Semantics:&nbsp;
+          <select value={sem} onChange={(e) => setSem(e.target.value as any)}>
             <option value="preferred">preferred</option>
             <option value="stable">stable</option>
             <option value="grounded">grounded</option>
@@ -63,29 +70,32 @@ export default function Winners({
           </select>
         </label>
         <label>
-          <input 
-            type="checkbox" 
-            checked={useLLM} 
-            onChange={e=>onUpdateWinnersState({useLLM: e.target.checked})} 
-          /> 
+          <input
+            type="checkbox"
+            checked={useLLM}
+            onChange={(e) => setUseLLM(e.target.checked)}
+          />{" "}
           use LLM edges
         </label>
         <label>
-          <input 
-            type="checkbox" 
-            checked={repair} 
-            onChange={e=>onUpdateWinnersState({repair: e.target.checked})} 
-          /> 
+          <input
+            type="checkbox"
+            checked={repair}
+            onChange={(e) => setRepair(e.target.checked)}
+          />{" "}
           repair stance
         </label>
-        <label>limit:&nbsp;
-          <input 
-            type="number" 
-            min={1} 
-            max={10} 
-            value={limit} 
-            onChange={e=>onUpdateWinnersState({limit: parseInt(e.target.value||"5",10)})} 
-            style={{width:60}}
+        <label>
+          limit:&nbsp;
+          <input
+            type="number"
+            min={1}
+            max={10}
+            value={limit}
+            onChange={(e) =>
+              setLimit(parseInt(e.target.value || "5", 10) || 5)
+            }
+            style={{ width: 60 }}
           />
         </label>
         <button onClick={run} disabled={loading || !value.trim()}>
@@ -93,15 +103,12 @@ export default function Winners({
         </button>
       </div>
 
-      <div style={{marginTop:12, flex:1, minHeight:0, overflow:"auto"}}>
-        {error && <div style={{color:"#ff8a8a", marginBottom: 12}}>{error}</div>}
+      <div className="code scroll">
+        {error && <div className="error">{error}</div>}
         {resp?.markdown ? (
-          <MarkdownDisplay 
-            content={resp.markdown}
-            style={{flex: 1, minHeight: 0, overflow: "auto"}}
-          />
+          <div style={{ whiteSpace: "pre-wrap" }}>{resp.markdown}</div>
         ) : (
-          <div style={{opacity:0.7}}>
+          <div className="muted">
             No results yet. Paste arguments on the left, then click the button.
           </div>
         )}

@@ -1,521 +1,397 @@
 #!/usr/bin/env python3
 """
-server.py — FastAPI backend for Argumentation Semantics Playground
+Unified server.py — Argument Debugger (AF + ad.py on winners)
 
-Endpoints:
-  POST /api/run      — extract AF + compute semantics; returns JSON + markdown + APX/DOT strings
-  POST /api/repair   — plan/generate/verify preferred-credulous (add-nodes-only); returns BEFORE/AFTER JSON and augmented text
+Exposes two JSON endpoints used by the frontend:
+- POST /api/run/af      → Build AF from text with nl2apx, compute semantics with af_clingo
+- POST /api/ad/winners  → Compute winning sets (preferred/stable/...), run ad.py on each stance
 
-Assumes you have the toolkit modules alongside this server:
-  - nl2apx.py
-  - af_clingo.py
-  - (optional) argsem.py (some helper functions are reused if available)
-
-Run:
-  pip install fastapi uvicorn pydantic clingo
-  uvicorn server:app --reload --port 8000
+This file has no external app routers; everything is self-contained.
 """
+
 from __future__ import annotations
 
 import os
-import json
-from typing import List, Dict, Tuple, Set, Optional, Any
-from dataclasses import dataclass
+import tempfile
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from starlette.middleware.base import BaseHTTPMiddleware
+from pydantic import BaseModel
 
-from server_winners_router import router as winners_router
+# --- Core dependencies from this repo ---
+import nl2apx as NL
+import af_clingo
 
-# Try to import toolkit modules (must be present)
+# ad.py is optional; the winners endpoint will report if not available
 try:
-    import nl2apx
-    import af_clingo
-    from llm import set_request_api_key, LLMConfigurationError
-except Exception as e:
-    raise RuntimeError("This backend requires nl2apx.py and af_clingo.py in the same folder.") from e
+    import ad as AD
+    _HAVE_AD = True
+except Exception:  # pragma: no cover
+    AD = None  # type: ignore
+    _HAVE_AD = False
 
-# Optional: use argsem helpers if available
-_HAVE_ARGSEM = False
-try:
-    import argsem as AS
-    _HAVE_ARGSEM = True
-except Exception:
-    _HAVE_ARGSEM = False
 
-# ---------------- Utility (shared with argsem) ----------------
-def _make_mappings(ids: List[str]) -> Tuple[List[str], Dict[str,str], Dict[str,str]]:
-    atoms = nl2apx.make_unique([nl2apx.sanitize_atom(i) for i in ids])
-    id2atom = {ids[i]: atoms[i] for i in range(len(ids))}
+# -----------------------------
+# Helpers (AF build + semantics)
+# -----------------------------
+
+def _sanitize_atom(s: str) -> str:
+    import re
+    s0 = (s or "").strip().lower()
+    s1 = re.sub(r"[^a-z0-9_]+", "_", s0)
+    if not re.match(r"^[a-z]", s1):
+        s1 = "n_" + s1
+    s1 = re.sub(r"__+", "_", s1).strip("_")
+    return s1 or "n"
+
+
+def build_af_from_text(
+    text: str,
+    relation: str = "auto",
+    jaccard: float = 0.45,
+    min_overlap: int = 3,
+    use_llm: bool = False,
+    llm_threshold: float = 0.55,
+    llm_mode: str = "augment",
+):
+    """Build AF from raw text (blocks separated by blank lines)."""
+    # nl2apx.parse_blocks expects a file path; use temp file for safety
+    with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".txt") as tf:
+        tf.write(text or "")
+        tmp_path = tf.name
+    try:
+        blocks = NL.parse_blocks(tmp_path)
+        ids, id2text, idx_edges, meta = NL.build_edges(
+            blocks,
+            relation_mode=relation,
+            jac_threshold=jaccard,
+            min_overlap=min_overlap,
+            use_llm=use_llm,
+            llm_threshold=llm_threshold,
+            llm_mode=llm_mode,
+        )
+    finally:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+
+    # Map IDs → APX atoms (stable, human-readable)
+    id2atom: Dict[str, str] = {}
+    used = set()
+    for _id in ids:
+        base = _sanitize_atom(_id)
+        k = base
+        i = 1
+        while k in used:
+            i += 1
+            k = f"{base}_{i}"
+        id2atom[_id] = k
+        used.add(k)
     atom2id = {v: k for k, v in id2atom.items()}
-    return atoms, id2atom, atom2id
 
-def build_af_from_text(text: str,
-                       relation: str = "auto",
-                       jaccard: float = 0.45,
-                       min_overlap: int = 3,
-                       use_llm: bool = False,
-                       llm_threshold: float = 0.55,
-                       llm_mode: str = "augment"):
-    blocks = nl2apx.parse_blocks_text(text)
-    ids, id_to_text, idx_edges, meta = nl2apx.build_edges(
-        blocks,
-        relation_mode=relation,
-        jac_threshold=jaccard,
-        min_overlap=min_overlap,
-        use_llm=use_llm,
-        llm_threshold=llm_threshold,
-        llm_mode=llm_mode,
+    # Translate index edges into atom-space attacks
+    attacks: Set[Tuple[str, str]] = set()
+    L = list(ids)
+    for (i, j) in idx_edges:
+        attacks.add((id2atom[L[i]], id2atom[L[j]]))
+
+    atoms = [id2atom[_id] for _id in ids]
+    return ids, id2text, atoms, attacks, id2atom, atom2id, meta
+
+
+def compute_semantics(atoms: List[str], attacks: Set[Tuple[str, str]]):
+    """Return all core semantics in one dict."""
+    return dict(
+        grounded=list(af_clingo.grounded(atoms, attacks)),
+        preferred=[list(S) for S in af_clingo.preferred(atoms, attacks)],
+        stable=[list(S) for S in af_clingo.stable(atoms, attacks)],
+        complete=[list(S) for S in af_clingo.complete(atoms, attacks)],
+        stage=[list(S) for S in af_clingo.stage(atoms, attacks)],
+        semi_stable=[list(S) for S in af_clingo.semi_stable(atoms, attacks)],
     )
-    atoms, id2atom, atom2id = _make_mappings(ids)
-    attacks = set((atoms[i], atoms[j]) for (i,j) in idx_edges)
-    return ids, id_to_text, atoms, id2atom, atom2id, attacks, meta
 
-def export_dot_string(atoms: List[str], attacks: Set[Tuple[str,str]], atom2id: Dict[str,str]) -> str:
-    lines = ["digraph AF {", '  rankdir=LR;', '  node [shape=box, style="rounded,filled", fillcolor="#f8f9fb"];']
-    for a in atoms:
-        label = atom2id.get(a, a)
-        lines.append(f'  "{a}" [label="{label}\\n({a})"];')
-    for (u,v) in sorted(attacks):
-        lines.append(f'  "{u}" -> "{v}" [color="#555"];')
-    lines.append("}")
-    return "\n".join(lines)
 
-def idx_edges_from_attacks(ids: List[str], atom2id: Dict[str,str], attacks: Set[Tuple[str,str]]):
-    idx_map = {ids[i]: i for i in range(len(ids))}
-    idx_edges = set()
-    for (u,v) in attacks:
-        uid = atom2id.get(u, u)  # actually maps atom->id
-        vid = atom2id.get(v, v)
-        if uid in idx_map and vid in idx_map:
-            idx_edges.add((idx_map[uid], idx_map[vid]))
-    return idx_edges
+def winners(atoms: List[str], attacks: Set[Tuple[str, str]], mode: str):
+    m = (mode or "preferred").lower()
+    if m == "grounded":
+        return [set(af_clingo.grounded(atoms, attacks))]
+    if m == "preferred":
+        return [set(S) for S in af_clingo.preferred(atoms, attacks)]
+    if m == "stable":
+        return [set(S) for S in af_clingo.stable(atoms, attacks)]
+    if m == "complete":
+        return [set(S) for S in af_clingo.complete(atoms, attacks)]
+    if m == "stage":
+        return [set(S) for S in af_clingo.stage(atoms, attacks)]
+    if m in ("semi-stable", "semistable", "semi_stable"):
+        return [set(S) for S in af_clingo.semi_stable(atoms, attacks)]
+    raise ValueError(f"Unknown winners mode: {mode}")
 
-def _F(atoms: List[str], attacks: Set[Tuple[str,str]], S: Set[str]) -> Set[str]:
-    atk = {a:set() for a in atoms}
-    for (u,v) in attacks:
-        if v in atk: atk[v].add(u)
-    defended = set()
-    for a in atoms:
-        ok = True
-        for b in atk[a]:
-            if not any((c,b) in attacks for c in S):
-                ok = False; break
-        if ok:
-            defended.add(a)
-    return defended
 
-def defense_depth(atoms: List[str], attacks: Set[Tuple[str,str]]):
-    depth = {a: None for a in atoms}
-    S = set(); i = 0
-    while True:
-        T = _F(atoms, attacks, S)
-        if T == S: break
-        wave = T - S; i += 1
-        for a in wave:
-            if depth[a] is None: depth[a] = i
-        S = T
-    return depth
+def _stance_text(member_ids: List[str], id2text: Dict[str, str]) -> str:
+    parts = []
+    for mid in member_ids:
+        t = (id2text.get(mid) or "").strip()
+        if t:
+            parts.append(t)
+    return "\n\n".join(parts).strip()
 
-def extraction_summary(meta: Dict[str, Any], attacks: Set[Tuple[str,str]]):
-    exp = len(meta.get("explicit_edges") or [])
-    heu = len(meta.get("heuristic_edges") or [])
-    llm = len(meta.get("llm_edges") or [])
-    return {
-        "explicit": exp,
-        "heuristic": heu,
-        "llm": llm,
-        "total_edges": len(attacks),
-        "auto_note": meta.get("auto_note")
-    }
 
-def translate_set(S: frozenset, atom2id: Dict[str,str]) -> List[str]:
-    return sorted([atom2id.get(a, a) for a in S])
+# ---------------------------------
+# ad.py analysis for a stance (text)
+# ---------------------------------
 
-# ---------------- Middleware ----------------
-class APIKeyMiddleware(BaseHTTPMiddleware):
-    """Middleware to handle request-scoped API keys via X-Gemini-API-Key header."""
-    
-    async def dispatch(self, request: Request, call_next):
-        # Extract API key from header
-        api_key = request.headers.get("X-Gemini-API-Key")
-        if api_key:
-            set_request_api_key(api_key)
-        
-        response = await call_next(request)
-        return response
+def _analyze_stance_with_ad(text: str, want_repair: bool = False) -> Dict[str, Any]:
+    if not _HAVE_AD:
+        return {"error": "ad.py not available"}
+    try:
+        parser = AD.ArgumentParser()
+        argument = parser.parse_argument(text)
+        issues = AD.ASPDebugger(debug=False).analyze(argument)
+        payload: Dict[str, Any] = {
+            "claims": [
+                {"id": c.id, "type": c.type, "content": c.content} for c in argument.claims
+            ],
+            "inferences": [
+                {"from": i.from_claims, "to": i.to_claim, "rule_type": i.rule_type}
+                for i in argument.inferences
+            ],
+            "goal_claim": argument.goal_claim,
+            "issues": [
+                {"type": it.type, "description": it.description, "claims": it.involved_claims}
+                for it in issues
+            ],
+        }
+        if want_repair and issues:
+            rep = AD.RepairGenerator(debug=False)
+            commentary, clean = rep.generate_repair(text, argument, issues)
+            payload["repair"] = {"commentary": commentary, "clean_argument": clean}
+        return payload
+    except Exception as e:  # pragma: no cover
+        return {"error": f"ad.py failed: {e.__class__.__name__}: {e}"}
 
-# ---------------- API models ----------------
+
+# ----------------
+# Pydantic models
+# ----------------
+
 class RunRequest(BaseModel):
-    text: str = Field(..., description="Full arguments.txt content (blocks separated by blank lines)")
-    relation: str = Field("auto", description="auto | explicit | none")
+    text: str
+    relation: str = "auto"                  # auto|explicit|none
+    use_llm: bool = False
+    llm_mode: str = "augment"               # augment|override
+    llm_threshold: float = 0.55
     jaccard: float = 0.45
     min_overlap: int = 3
-    use_llm: bool = False
-    llm_threshold: float = 0.55
-    llm_mode: str = "augment"  # augment | override
-    sem: str = "all"           # which semantics set to return in 'semantics' key
-    target: Optional[str] = None
-    max_pref_cards: int = 4
-    want_markdown: bool = True
 
-class RepairRequest(RunRequest):
-    repair: bool = True
-    k: int = 1
-    fanout: int = 0
-    new_prefix: str = "R"
-    llm_generate: bool = False
-    force: bool = False
-    min_coverage: Optional[float] = None
-    verify_relation: str = "explicit"  # "explicit" or "same"
 
-# ---------------- App ----------------
-app = FastAPI(title="AS Playground API", version="0.1.0")
-app.add_middleware(APIKeyMiddleware)
+class WinnersRequest(RunRequest):
+    winners: str = "preferred"              # preferred|stable|grounded|complete|stage|semi-stable
+    limit_stances: int = 5
+    repair_stance: bool = False
+
+
+# ---------
+# FastAPI
+# ---------
+
+app = FastAPI(title="Argument Debugger Server", version="1.0-unified")
+
+# CORS for local dev; adjust allow_origins for prod
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(winners_router, prefix="/api/ad")
 
-# ---------------- Core handlers ----------------
-@app.post("/api/run")
-def api_run(req: RunRequest):
-    try:
-        ids, id2text, atoms, id2atom, atom2id, attacks, meta = build_af_from_text(
-            req.text, relation=req.relation,
-            jaccard=req.jaccard, min_overlap=req.min_overlap,
-            use_llm=req.use_llm, llm_threshold=req.llm_threshold, llm_mode=req.llm_mode
-        )
-    except (LLMConfigurationError, RuntimeError) as e:
-        if req.use_llm:
-            raise HTTPException(400, f"LLM requested but not available: {str(e)}")
-        else:
-            # This shouldn't happen if use_llm=False, but handle gracefully
-            raise HTTPException(500, f"Unexpected LLM error: {str(e)}")
-
-    # Semantics
-    G  = af_clingo.grounded(atoms, attacks)
-    PR = af_clingo.preferred(atoms, attacks)
-    ST = af_clingo.stable(atoms, attacks)
-    CO = af_clingo.complete(atoms, attacks)
-    SG = af_clingo.stage(atoms, attacks)
-    SS = af_clingo.semi_stable(atoms, attacks)
-
-    depth = defense_depth(atoms, attacks)
-
-    # Nodes
-    def in_many(fams, a): return f"{sum(1 for S in fams if a in S)}/{len(fams) or 0}"
-    nodes = []
-    for a in atoms:
-        _id = atom2id.get(a, a)
-        nodes.append({
-            "id": _id, "atom": a, "text": id2text.get(_id, ""),
-            "depth": depth[a],
-            "grounded": (a in G),
-            "preferred": in_many(PR, a),
-            "stable": in_many(ST, a),
-            "complete": in_many(CO, a),
-            "stage": in_many(SG, a),
-            "semistable": in_many(SS, a),
-        })
-
-    # Edges
-    idx_map = {ids[i]: i for i in range(len(ids))}
-    prov_idx = {}
-    def add(lst, tag):
-        for e in lst or []:
-            prov_idx.setdefault(tuple(e), []).append(tag)
-    add(meta.get("explicit_edges"), "exp")
-    add(meta.get("heuristic_edges"), "heu")
-    add(meta.get("llm_edges"), "llm")
-
-    edges = []
-    for (u,v) in sorted(attacks):
-        uid, vid = atom2id[u], atom2id[v]
-        ui, vi = idx_map.get(uid), idx_map.get(vid)
-        tags = prov_idx.get((ui,vi), []) if (ui is not None and vi is not None) else []
-        edges.append({"source": uid, "target": vid, "provenance": tags, "sourceAtom": u, "targetAtom": v})
-
-    # Preferred stance cards
-    cards = []
-    for i, S in enumerate(PR[: req.max_pref_cards], 1):
-        ids_in = [atom2id[a] for a in sorted(S)]
-        preview = "; ".join(id2text.get(_id, "")[:60].replace("\n"," ") for _id in ids_in[:3])
-        cards.append({"name": f"S{i}", "members": ids_in, "preview": preview})
-
-    # Dot & APX
-    dot = export_dot_string(atoms, attacks, atom2id)
-    idx_edges = idx_edges_from_attacks(ids, atom2id, attacks)
-    apx = nl2apx.emit_apx(ids, id2text, idx_edges, provenance=meta)
-
-    # Why-not insights for target (optional)
-    tgt_id = req.target if (req.target in ids) else (ids[0] if (req.target is None and ids) else None)
-    tgt_atom = id2atom.get(tgt_id) if tgt_id else None
-
-    def grounded_roadblocks(target_atom: Optional[str]):
-        if not target_atom: return []
-        Gs = set(G)
-        if target_atom in Gs: return []
-        atk = {a:set() for a in atoms}
-        for (u,v) in attacks:
-            atk[v].add(u)
-        return sorted([atom2id[b] for b in atk.get(target_atom, set())
-                       if not any((c,b) in attacks for c in Gs)])
-
-    def preferred_persistent_soft(target_atom: Optional[str]):
-        if not target_atom: return [], []
-        if not PR: return [], []
-        inter = set(atoms); union = set()
-        for S in PR:
-            inter &= set(S); union |= set(S)
-        atk = {a:set() for a in atoms}
-        for (u,v) in attacks:
-            atk[v].add(u)
-        A = atk.get(target_atom, set())
-        persistent = sorted([atom2id[a] for a in (inter & A)])
-        soft = sorted([atom2id[a] for a in ((union - inter) & A)])
-        return persistent, soft
-
-    rb = grounded_roadblocks(tgt_atom)
-    pers, soft = preferred_persistent_soft(tgt_atom)
-
-    # Markdown: reuse argsem if available
-    markdown = ""
-    if req.want_markdown and _HAVE_ARGSEM:
-        try:
-            markdown = AS.markdown_report("(from-POST)", ids, id2text, atoms, id2atom, atom2id, attacks, meta,
-                                          target_id=tgt_id, stance_limit=req.max_pref_cards, llm_summarize=False)
-        except Exception as e:
-            markdown = f"(markdown unavailable: {e})"
-
-    # Choose semantics family to return compactly
-    def tr_family(fams):
-        return [sorted([atom2id[a] for a in S]) for S in fams]
-
-    if req.sem == "all":
-        semantics = {
-            "grounded": sorted([atom2id[a] for a in G]),
-            "preferred": tr_family(PR),
-            "stable": tr_family(ST),
-            "complete": tr_family(CO),
-            "stage": tr_family(SG),
-            "semi-stable": tr_family(SS),
-        }
-    else:
-        fam = {
-            "grounded": [G],
-            "preferred": PR,
-            "stable": ST,
-            "complete": CO,
-            "stage": SG,
-            "semi-stable": SS
-        }.get(req.sem, PR)
-        semantics = tr_family(fam)
-
-    return {
-        "nodes": nodes,
-        "edges": edges,
-        "semantics": semantics,
-        "preferred_cards": cards,
-        "dot": dot,
-        "apx": apx,
-        "insights": {
-            "target": {"id": tgt_id, "atom": tgt_atom},
-            "grounded_roadblocks": rb,
-            "preferred_attackers": {"persistent": pers, "soft": soft},
-            "extraction": extraction_summary(meta, attacks),
-        },
-        "markdown": markdown,
-    }
-
-# ----- Repair helpers (subset of argsem logic) -----
-def attackers_of(atoms: List[str], attacks: Set[Tuple[str,str]], target_atom: str) -> List[str]:
-    return sorted({u for (u,v) in attacks if v == target_atom})
-
-def preferred_accepts(atoms: List[str], attacks: Set[Tuple[str,str]], target_atom: str) -> bool:
-    prefs = af_clingo.preferred(atoms, attacks)
-    return any(target_atom in S for S in prefs)
-
-def preferred_coverage(atoms: List[str], attacks: Set[Tuple[str,str]], target_atom: str):
-    prefs = af_clingo.preferred(atoms, attacks)
-    n = len(prefs)
-    if n == 0: return (0, 0, 0.0)
-    k = sum(1 for S in prefs if target_atom in S)
-    return (k, n, k/n if n>0 else 0.0)
-
-def preferred_attacker_frequencies(atoms: List[str], attacks: Set[Tuple[str,str]], target_atom: str) -> Dict[str,int]:
-    prefs = af_clingo.preferred(atoms, attacks); counts = {a:0 for a in atoms}
-    for S in prefs:
-        for a in S: counts[a]+=1
-    return {b: counts.get(b,0) for b in attackers_of(atoms, attacks, target_atom)}
-
-def group_blockers(blockers: List[str], k: int, fanout: int) -> List[List[str]]:
-    if not blockers or k <= 0: return []
-    if fanout <= 0: return [blockers[:]] if k >= 1 else []
-    if fanout == 1: return [[b] for b in blockers[:k]]
-    gcount = min(k, max(1, (len(blockers)+fanout-1)//fanout))
-    groups = [[] for _ in range(gcount)]
-    i = 0
-    for b in blockers:
-        groups[i % gcount].append(b); i += 1
-    return groups
-
-def next_new_ids(existing_ids: List[str], n: int, prefix: str = "R") -> List[str]:
-    base=1; used=set(existing_ids); out=[]
-    while len(out)<n:
-        cand=f"{prefix}{base}"
-        if cand not in used:
-            out.append(cand); used.add(cand)
-        base += 1
-    return out
-
-def _defender_template(gids: List[str], id2text: Dict[str,str]) -> str:
-    return ("This claim relies on a contested assumption and overlooks countervailing evidence that limits its conclusion in this context."
-            if len(gids)==1 else
-            "These claims share a contested assumption and ignore limiting conditions; taken together, they overstate their conclusion in this context.")
-
-def build_new_blocks(new_ids: List[str], groups_ids: List[List[str]], id_to_text: Dict[str,str],
-                     use_llm_text: bool = False) -> List[str]:
-    # For now: deterministic text (LLM text optional to add later)
-    blocks = []
-    for nid, gids in zip(new_ids, groups_ids):
-        body = _defender_template(gids, id_to_text)
-        blocks.append(f"ID: {nid}\nATTACKS: {', '.join(gids)}\n{body}\n")
-    return blocks
-
-def verify_after_text(original_text: str, new_blocks: List[str], verify_relation: str = "explicit"):
-    augmented = original_text.strip() + "\n\n" + ("\n\n".join([b.strip() for b in new_blocks])) + "\n"
-    ids2, id2text2, atoms2, id2atom2, atom2id2, attacks2, meta2 = build_af_from_text(
-        augmented, relation=verify_relation, use_llm=False
-    )
-    return augmented, (ids2, id2text2, atoms2, id2atom2, atom2id2, attacks2, meta2)
-
-@app.post("/api/repair")
-def api_repair(req: RepairRequest):
-    # 1) Baseline AF
-    try:
-        ids, id2text, atoms, id2atom, atom2id, attacks, meta = build_af_from_text(
-            req.text, relation=req.relation,
-            jaccard=req.jaccard, min_overlap=req.min_overlap,
-            use_llm=req.use_llm, llm_threshold=req.llm_threshold, llm_mode=req.llm_mode
-        )
-    except (LLMConfigurationError, RuntimeError) as e:
-        if req.use_llm:
-            raise HTTPException(400, f"LLM requested but not available: {str(e)}")
-        else:
-            # This shouldn't happen if use_llm=False, but handle gracefully
-            raise HTTPException(500, f"Unexpected LLM error: {str(e)}")
-    if req.target not in ids:
-        raise HTTPException(400, f"Target {req.target!r} not found. Known: {ids}")
-    t_atom = id2atom[req.target]
-
-    cred_before = preferred_accepts(atoms, attacks, t_atom)
-    k_in, n_pf, cov_before = preferred_coverage(atoms, attacks, t_atom)
-
-    # Early exit
-    goal_ok = cred_before and (req.min_coverage is None or cov_before >= req.min_coverage)
-    if goal_ok and not req.force:
-        # Still return baseline result
-        run_payload = api_run(RunRequest(**req.model_dump()))
-        run_payload["repair"] = {"skipped": True, "reason": "goal already satisfied"}
-        return run_payload
-
-    # 2) Plan
-    direct_blockers = attackers_of(atoms, attacks, t_atom)
-    freqs = preferred_attacker_frequencies(atoms, attacks, t_atom)
-    direct_blockers_sorted = sorted(direct_blockers, key=lambda b: (-freqs.get(b,0), b))
-    blocker_ids = [atom2id[b] for b in direct_blockers_sorted]
-
-    # 3) Group & new IDs
-    groups_ids = group_blockers(blocker_ids, k=max(1,req.k), fanout=req.fanout)
-    new_ids = next_new_ids(ids, len(groups_ids), prefix=req.new_prefix)
-
-    # 4) Generate new blocks
-    new_blocks = build_new_blocks(new_ids, groups_ids, id2text, use_llm_text=req.llm_generate)
-
-    # 5) Verify on augmented text
-    try:
-        augmented_text, after_tuple = verify_after_text(req.text, new_blocks, verify_relation=req.verify_relation)
-    except (LLMConfigurationError, RuntimeError) as e:
-        # verify_after_text uses use_llm=False, so this shouldn't happen, but handle gracefully
-        raise HTTPException(500, f"Unexpected LLM error during verification: {str(e)}")
-    ids2, id2text2, atoms2, id2atom2, atom2id2, attacks2, meta2 = after_tuple
-
-    t_atom2 = id2atom2.get(req.target)
-    cred_after = preferred_accepts(atoms2, attacks2, t_atom2) if t_atom2 else False
-    k_out, n_out, cov_after = preferred_coverage(atoms2, attacks2, t_atom2) if t_atom2 else (0,0,0.0)
-
-    # Build quick AFTER summary and dot/apx
-    dot_after = export_dot_string(atoms2, attacks2, atom2id2)
-    idx_edges2 = idx_edges_from_attacks(ids2, atom2id2, attacks2)
-    apx_after = nl2apx.emit_apx(ids2, id2text2, idx_edges2, provenance=meta2)
-
-    before_md = ""
-    after_md = ""
-    integrated_md = ""
-    if _HAVE_ARGSEM:
-        try:
-            before_md = AS.markdown_report("(before)", ids, id2text, atoms, id2atom, atom2id, attacks, meta,
-                                        target_id=req.target, stance_limit=req.max_pref_cards if hasattr(req, "max_pref_cards") else 4, llm_summarize=False)
-            after_md  = AS.markdown_report("(after)",  ids2, id2text2, atoms2, id2atom2, atom2id2, attacks2, meta2,
-                                        target_id=req.target, stance_limit=req.max_pref_cards if hasattr(req, "max_pref_cards") else 4, llm_summarize=False)
-            # Light integrated header
-            pc = {"k": k_out, "n": n_out, "frac": cov_after}
-            integrated_md = (
-                f"# Integrated Repair Report — target {req.target}\n\n"
-                f"- Preferred credulous before? **{'YES' if cred_before else 'NO'}**\n"
-                f"- Preferred coverage before: **{k_in}/{n_pf} ≈ {cov_before:.2f}**\n"
-                f"- Direct blockers: {', '.join(blocker_ids) if blocker_ids else '(none)'}\n"
-                f"- Groups → new nodes: " + "; ".join(f"{nid}→({', '.join(gids)})" for nid, gids in zip(new_ids, groups_ids)) + "\n\n"
-                "## New claims\n" + "\n\n".join(new_blocks) + "\n\n"
-                "## Verification\n"
-                f"- Preferred credulous after? **{'YES' if cred_after else 'NO'}**\n"
-                f"- Preferred coverage after: **{pc['k']}/{pc['n']} ≈ {pc['frac']:.2f}**\n\n"
-                "----\n\n## BEFORE\n\n" + before_md + "\n----\n\n## AFTER\n\n" + after_md
-            )
-        except Exception as e:
-            integrated_md = f"(integrated markdown unavailable: {e})"
-
-    # Return integrated payload
-    return {
-        "before": api_run(RunRequest(**{**req.model_dump(), "want_markdown": True, "repair": False})),
-        "new_claims": new_blocks,
-        "after": {
-            "nodes": [
-                {
-                    "id": atom2id2[a],
-                    "atom": a,
-                    "text": id2text2.get(atom2id2[a], ""),
-                } for a in atoms2
-            ],
-            "edges": [
-                {"source": atom2id2[u], "target": atom2id2[v]} for (u,v) in sorted(attacks2)
-            ],
-            "dot": dot_after,
-            "apx": apx_after,
-            "insights": {
-                "preferred_credulous": bool(cred_after),
-                "preferred_coverage": {"k": k_out, "n": n_out, "frac": cov_after},
-                "extraction": extraction_summary(meta2, attacks2),
-            },
-        },
-        "augmented_text": augmented_text,
-        "plan": {
-            "target": req.target,
-            "blockers": blocker_ids,
-            "groups": [{"new_id": nid, "attacks": gids} for nid, gids in zip(new_ids, groups_ids)],
-        },
-        "markdown": { "before": before_md, "after": after_md, "integrated": integrated_md }
-    }
-
-# Health check
 @app.get("/api/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, "ad_available": _HAVE_AD}
+
+
+@app.post("/api/run/af")
+def api_run_af(req: RunRequest):
+    try:
+        ids, id2text, atoms, attacks, id2atom, atom2id, meta = build_af_from_text(
+            text=req.text,
+            relation=req.relation,
+            jaccard=req.jaccard,
+            min_overlap=req.min_overlap,
+            use_llm=req.use_llm,
+            llm_threshold=req.llm_threshold,
+            llm_mode=req.llm_mode,
+        )
+        sem = compute_semantics(atoms, set(attacks))
+        return {
+            "input": {
+                "ids": ids,
+                "id2text": id2text,
+                "id2atom": id2atom,
+                "atom2id": atom2id,
+                "attacks": sorted(list(attacks)),
+                "meta": {
+                    "explicit_edges": meta.get("explicit_edges") or [],
+                    "heuristic_edges": meta.get("heuristic_edges") or [],
+                    "llm_edges": meta.get("llm_edges") or [],
+                },
+            },
+            "semantics": sem,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"AF build failed: {e}")
+
+
+@app.post("/api/ad/winners")
+def api_ad_winners(req: WinnersRequest):
+    try:
+        ids, id2text, atoms, attacks, id2atom, atom2id, meta = build_af_from_text(
+            text=req.text,
+            relation=req.relation,
+            jaccard=req.jaccard,
+            min_overlap=req.min_overlap,
+            use_llm=req.use_llm,
+            llm_threshold=req.llm_threshold,
+            llm_mode=req.llm_mode,
+        )
+        ext = winners(atoms, attacks, req.winners)
+        if req.limit_stances and len(ext) > req.limit_stances:
+            ext = ext[: req.limit_stances]
+
+        stances = []
+        for i, S in enumerate(ext, 1):
+            mids = sorted([atom2id[a] for a in S])
+            text = _stance_text(mids, id2text)
+            ad_res = _analyze_stance_with_ad(text, want_repair=req.repair_stance) if text else {"error": "empty stance text"}
+            stances.append({"name": f"S{i}", "members_ids": mids, "ad": ad_res})
+
+        # Simple Markdown (frontend renders this directly)
+        def _md_escape(s: str) -> str:
+            return (s or "").replace("|", "\\|")
+
+        def _preview(s: str, n: int = 140) -> str:
+            s = (s or "").strip().replace("\n", " ")
+            return s if len(s) <= n else s[: n - 1] + "…"
+
+        lines = []
+        exp = len(meta.get("explicit_edges") or [])
+        heu = len(meta.get("heuristic_edges") or [])
+        llm = len(meta.get("llm_edges") or [])
+        lines += [
+            "# Winning sets analyzed by ad.py",
+            "",
+            "## AF Extraction",
+            f"- explicit attacks: **{exp}**, heuristic: **{heu}**, llm: **{llm}**",
+            f"- winners semantics: **{req.winners}**",
+            "",
+        ]
+        if not stances:
+            lines.append("_No winning sets under this semantics._")
+        for i2, S2 in enumerate(stances, 1):
+            mids = S2["members_ids"]
+            lines.append(f"## Stance S{i2} — members ({len(mids)}): {{ " + ", ".join(mids) + " }}")
+            for mid in mids:
+                atom = id2atom.get(mid, "?")
+                snip = _preview(id2text.get(mid, ""))
+                lines.append(f"- **{mid}** (`{atom}`): {snip}")
+            lines.append("")
+
+            ad = S2.get("ad", {})
+            if ad.get("error"):
+                lines.append(f"_ad.py analysis skipped: {ad['error']}_")
+                lines.append("")
+                continue
+
+            claims = ad.get("claims") or []
+            infs = ad.get("inferences") or []
+            goal = ad.get("goal_claim") or "—"
+            issues = ad.get("issues") or []
+            lines.append(f"**ad.py parse:** claims={len(claims)}, inferences={len(infs)}, goal={goal}")
+
+            # Claims table
+            lines.append("")
+            lines.append("**Claims parsed**")
+            if not claims:
+                lines.append("_no claims parsed_")
+            else:
+                lines.append("| Claim | Type | Text |")
+                lines.append("|:-----:|:-----|:-----|")
+                for c in claims:
+                    lines.append(f"| `{c['id']}` | {c['type']} | {_md_escape(_preview(c['content']))} |")
+
+            # Inferences
+            lines.append("")
+            lines.append("**Inferences**")
+            cmap = {c["id"]: c["content"] for c in claims}
+            if not infs:
+                lines.append("_no inferences_")
+            else:
+                for inf in infs:
+                    frm = ", ".join(inf.get("from") or inf.get("from_claims", []))
+                    to = inf.get("to") or inf.get("to_claim")
+                    rt = inf.get("rule_type", "")
+                    to_txt = _preview(cmap.get(to, ""))
+                    lines.append(f"- [{frm}] → {to} ({rt}) — “{_md_escape(to_txt)}”")
+
+            # Issues (grouped)
+            lines.append("")
+            lines.append("**Issues (detailed)**")
+            if not issues:
+                lines.append("_no issues detected_")
+            else:
+                from collections import defaultdict
+
+                g = defaultdict(list)
+                for it in issues:
+                    g[it["type"]].append(it)
+                for t in sorted(g):
+                    lines.append(f"**{t}**")
+                    for it in g[t]:
+                        cl = it.get("claims") or []
+                        annot = []
+                        for cid in cl:
+                            txt = _preview(cmap.get(cid, ""))
+                            annot.append(f"`{cid}` — “{_md_escape(txt)}”")
+                        ann = "; ".join(annot) if annot else "(no specific claims)"
+                        lines.append(f"- {it['description']} {ann}")
+
+            # Repair excerpt
+            rep = ad.get("repair")
+            if rep and rep.get("commentary"):
+                lines.append("")
+                lines.append("**Repair commentary (excerpt)**")
+                comm = (rep["commentary"] or "").strip()
+                if len(comm) > 600:
+                    comm = comm[:600] + "…"
+                lines.append(comm)
+
+            lines.append("")
+
+        md = "\n".join(lines)
+
+        return {
+            "meta": {
+                "ids": ids,
+                "id2atom": id2atom,
+                "winners": req.winners,
+                "ad_available": _HAVE_AD,
+            },
+            "stances": stances,
+            "markdown": md,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Winners analysis failed: {e}")
+
+
+# -------------
+# Entrypoint
+# -------------
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=True)

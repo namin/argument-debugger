@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react"
-import cytoscape, { ElementDefinition, Stylesheet } from "cytoscape"
+import cytoscape, { ElementDefinition } from "cytoscape"
 
 type Props = {
   nodes: { id: string; grounded?: boolean; preferred?: string; atom?: string }[]
@@ -22,7 +22,7 @@ const Graph: React.FC<Props> = ({ nodes, edges, highlightId }) => {
       ...edges.map(e => ({ data: { id: e.source + "->" + e.target, source: e.source, target: e.target } }))
     ]
 
-    const style: Stylesheet[] = [
+    const style: any[] = [
       { selector: "node",
         style: {
           "background-color": "#e3f2fd",
