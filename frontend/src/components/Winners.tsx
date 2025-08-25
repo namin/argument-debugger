@@ -2,7 +2,7 @@
 import React from "react";
 import MarkdownDisplay from "./MarkdownDisplay";
 
-type WinnersResult = {
+export type WinnersResult = {
   markdown?: string;
   stances?: any[];
   meta?: any;

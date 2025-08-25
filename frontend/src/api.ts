@@ -23,6 +23,19 @@ export type RepairRequest = RunRequest & {
   verify_relation?: "explicit" | "same";
 };
 
+export type WinnersRequest = {
+  text: string;
+  relation?: "auto" | "explicit" | "none";
+  use_llm?: boolean;
+  llm_mode?: "augment" | "override";
+  llm_threshold?: number;
+  jaccard?: number;
+  min_overlap?: number;
+  winners?: "preferred" | "stable" | "grounded" | "complete" | "stage" | "semi-stable";
+  limit_stances?: number;
+  repair_stance?: boolean;
+};
+
 const API_BASE = (import.meta as any).env?.VITE_API_BASE || "http://localhost:8000";
 
 async function postJSON<T>(path: string, body: any, apiKey?: string | null): Promise<T> {
@@ -52,4 +65,8 @@ export function runSemantics(req: RunRequest, apiKey?: string | null) {
 
 export function runRepair(req: RepairRequest, apiKey?: string | null) {
   return postJSON("/api/repair", req, apiKey);
+}
+
+export function runWinners(req: WinnersRequest, apiKey?: string | null) {
+  return postJSON("/api/ad/winners", req, apiKey);
 }

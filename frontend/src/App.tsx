@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from "react"
 import Graph from "./components/Graph"
 import MarkdownDisplay from "./components/MarkdownDisplay"
-import Winners, { WinnersState } from "./components/Winners";
-import { runSemantics, runRepair, RunRequest, RepairRequest } from "./api"
+import Winners, { WinnersState, WinnersResult } from "./components/Winners";
+import { runSemantics, runRepair, runWinners as runWinnersAPI, RunRequest, RepairRequest, WinnersRequest } from "./api"
 
 const SAMPLE = `ID: A1
 We should adopt a 3-day in-office policy to boost collaboration and team cohesion.
@@ -139,34 +139,17 @@ export default function App() {
   }) {
     setWinnersState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json"
+      const req: WinnersRequest = {
+        text: params.text,
+        relation: "auto",
+        use_llm: params.useLLM,
+        llm_mode: "augment",
+        llm_threshold: 0.55,
+        winners: params.sem as "preferred" | "stable" | "grounded" | "complete" | "stage" | "semi-stable",
+        limit_stances: params.limit,
+        repair_stance: params.repair,
       };
-      
-      if (apiKey) {
-        headers["X-Gemini-API-Key"] = apiKey;
-      }
-      
-      const API_BASE = (import.meta as any).env?.VITE_API_BASE || "http://localhost:8000";
-      const r = await fetch(`${API_BASE}/api/ad/winners`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          text: params.text,
-          relation: "auto",
-          use_llm: params.useLLM,
-          llm_mode: "augment",
-          llm_threshold: 0.55,
-          winners: params.sem,
-          limit_stances: params.limit,
-          repair_stance: params.repair,
-        })
-      });
-      if (!r.ok) {
-        const errorText = await r.text();
-        throw new Error(`${r.status} ${r.statusText}: ${errorText}`);
-      }
-      const j = await r.json();
+      const j = await runWinnersAPI(req, apiKey || null) as WinnersResult;
       setWinnersState(prev => ({ ...prev, resp: j, loading: false }));
     } catch (e: any) {
       setWinnersState(prev => ({ 
