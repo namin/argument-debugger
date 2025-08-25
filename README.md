@@ -77,7 +77,8 @@ Show Remaining Issues
 - [ad_baseline.py](ad_baseline.py): a whole-LLM baseline from a single prompt to issue detection. Compatible with tests.
 - [ad_debate.py](ad_debate.py): analyzes the debate frontier.
 - [logical_form.py](logical_form.py): encoding to First-Order Logic (FOL), with detecting using ASP and certification in Lean. See dedicated [tutorial](TUTORIAL_FOL.md). The `--lean` extension requires the [Lean](https://leanprover-community.github.io/) theorem prover via the `lean` command line program.
-- [argsem.py](argsem.py): from natural language to argumentation semantics; related files are [nl2apx.py](nl2apx.py), [af_clingo.py](af_clingo.py) and the alternative bare-bones solver [apxsolve.py](apxsolve.py). See dedicated tutorial [tutorial](TUTORIAL_AS.md).
+- [run_unified.py](run_unified.py): from natural language to argumentation semantics to argument debugger for winning set; related files are [nl2apx.py](nl2apx.py), [af_clingo.py](af_clingo.py) and [unified_core.py](unified_core.py). See dedicated tutorial [tutorial](TUTORIAL_AS.md).
+- [apxsolve.py](apxsolve.py): a bare-bones alternative to [af_clingo.py](af_clingo.py) for solving argumentation semantics.
 - [app](APP.md): a web app that integrates some of these functions.
 
 ## References
