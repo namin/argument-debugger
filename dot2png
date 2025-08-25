@@ -1,0 +1,19 @@
+#!/bin/bash
+# Usage: dot2png yourfile.dot
+# Generates yourfile.png using Graphviz
+
+if [ $# -ne 1 ]; then
+  echo "Usage: $0 file.dot"
+  exit 1
+fi
+
+input="$1"
+if [[ "$input" != *.dot ]]; then
+  echo "Error: Input file must have .dot extension"
+  exit 2
+fi
+
+base="${input%.dot}"
+output="${base}.png"
+
+dot -Tpng "$input" -o "$output"
