@@ -32,8 +32,8 @@ Toy AF:
 - $F(∅) = {A}$
 - $F(\\{A\\}) = \\{A, C\\}$
 - $F(\\{A,C\\}) = \\{A,C\\}$
-- **Conflict‑free**: $∅,\\{A\\},\\{B\\},\\{C\\},\\{A,C\\}$
-- **Admissible**: $∅,\\{A\\},\\{A,C\\}$
+- **Conflict‑free**: $∅$,$\\{A\\}$,$\\{B\\}$,$\\{C\\}$,$\\{A,C\\}$
+- **Admissible**: $∅$,$\\{A\\}$,$\\{A,C\\}$
 - **Complete**: $\\{A,C\\}$
 - **Grounded**: $\\{A,C\\}$
 - **Preferred**: $\\{A,C\\}$
@@ -48,10 +48,10 @@ Toy AF bis:
   <summary>Worked-out properties of toy AF bis</summary>
 
 - $F(∅) = ∅$
-- **Conflict‑free**: $∅,\\{A\\},\\{B\\}$
-- **Admissible**: $∅,\\{A\\},\\{B\\}$
-- **Complete**: $∅,\\{A\\},\\{B\\}$
+- **Conflict‑free**: $∅,$\\{A\\}$,$\\{B\\}$
+- **Admissible**: $∅$,$\\{A\\}$,$\\{B\\}$
+- **Complete**: $∅$,$\\{A\\}$,$\\{B\\}$
 - **Grounded**: $∅$
-- **Preferred**: $\\{A\\},\\{B\\}$
-- **Stable**: $\\{A\\},\\{B\\}$
+- **Preferred**: $\\{A\\}$,$\\{B\\}$
+- **Stable**: $\\{A\\}$,$\\{B\\}$
 </details>
