@@ -5,22 +5,32 @@ llm.py — Centralized LLM client initialization for Gemini/Vertex AI
 This module provides a unified interface for creating LLM clients across the codebase.
 Supports both direct Gemini API access and Vertex AI access.
 
-Environment variables:
-  GEMINI_API_KEY        - Direct Gemini API access
-  GOOGLE_CLOUD_PROJECT  - Vertex AI project ID
-  GOOGLE_CLOUD_LOCATION - Vertex AI location (default: us-central1)
+API Key Resolution (in order of priority):
+  1. Request-scoped API key (when used in server context via contextvars)
+  2. Environment variables: GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT
+  3. Explicit parameter (for standalone/CLI usage)
 
 Usage:
-  from llm import init_llm_client, get_llm_client_or_none
+  from llm import init_llm_client, get_llm_client_or_none, set_request_api_key
   
-  # For required LLM access (raises exception if unavailable)
-  client = init_llm_client()
+  # Server context - set request-scoped key
+  set_request_api_key("user-provided-key")
+  client = init_llm_client()  # Uses request-scoped key
   
-  # For optional LLM access (returns None if unavailable)
-  client = get_llm_client_or_none()
+  # Standalone/CLI context - uses environment variables
+  client = init_llm_client()  # Uses env vars
+  
+  # Explicit override (works in any context)
+  client = init_llm_client(api_key="explicit-key")
 """
 import os
 from typing import Optional
+from contextvars import ContextVar
+
+# Custom exceptions
+class LLMConfigurationError(Exception):
+    """Raised when LLM client cannot be initialized due to missing configuration."""
+    pass
 
 # Try to import Gemini dependencies
 _HAVE_GENAI = False
@@ -36,6 +46,23 @@ except ImportError:
 
 # Default model to use across the codebase
 LLM_MODEL = "gemini-2.5-flash"
+
+# Request-scoped API key storage (for server context)
+_request_api_key: ContextVar[Optional[str]] = ContextVar('request_api_key', default=None)
+
+
+def set_request_api_key(api_key: Optional[str]) -> None:
+    """Set API key for current request context (server use)."""
+    _request_api_key.set(api_key)
+
+
+def get_request_api_key() -> Optional[str]:
+    """Get API key from current request context (server use)."""
+    try:
+        return _request_api_key.get()
+    except LookupError:
+        # Not in a context where request API key was set (e.g., standalone usage)
+        return None
 
 
 def init_llm_client(api_key: Optional[str] = None, 
@@ -63,8 +90,11 @@ def init_llm_client(api_key: Optional[str] = None,
             raise RuntimeError("google.genai not available; install google-genai package or set required=False.")
         return None
     
-    # Use provided parameters or fall back to environment variables
-    gemini_api_key = api_key or os.getenv('GEMINI_API_KEY')
+    # API key resolution priority:
+    # 1. Explicit parameter (highest priority)
+    # 2. Request-scoped key (server context)
+    # 3. Environment variables (fallback)
+    gemini_api_key = api_key or get_request_api_key() or os.getenv('GEMINI_API_KEY')
     google_cloud_project = project or os.getenv('GOOGLE_CLOUD_PROJECT')
     google_cloud_location = location or os.getenv('GOOGLE_CLOUD_LOCATION', "us-central1")
     
@@ -79,7 +109,7 @@ def init_llm_client(api_key: Optional[str] = None,
         return None
     
     if required:
-        raise ValueError("Gemini configuration required. Set GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT environment variables.")
+        raise LLMConfigurationError("Gemini configuration required. Set GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT environment variables, or provide an API key via the frontend.")
     return None
 
 

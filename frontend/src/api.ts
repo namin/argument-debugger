@@ -25,10 +25,18 @@ export type RepairRequest = RunRequest & {
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE || "http://localhost:8000";
 
-async function postJSON<T>(path: string, body: any): Promise<T> {
+async function postJSON<T>(path: string, body: any, apiKey?: string | null): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json"
+  };
+  
+  if (apiKey) {
+    headers["X-Gemini-API-Key"] = apiKey;
+  }
+  
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -38,10 +46,10 @@ async function postJSON<T>(path: string, body: any): Promise<T> {
   return await res.json();
 }
 
-export function runSemantics(req: RunRequest) {
-  return postJSON("/api/run", req);
+export function runSemantics(req: RunRequest, apiKey?: string | null) {
+  return postJSON("/api/run", req, apiKey);
 }
 
-export function runRepair(req: RepairRequest) {
-  return postJSON("/api/repair", req);
+export function runRepair(req: RepairRequest, apiKey?: string | null) {
+  return postJSON("/api/repair", req, apiKey);
 }

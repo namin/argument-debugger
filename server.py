@@ -22,16 +22,16 @@ import json
 from typing import List, Dict, Tuple, Set, Optional, Any
 from dataclasses import dataclass
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-
-from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # Try to import toolkit modules (must be present)
 try:
     import nl2apx
     import af_clingo
+    from llm import set_request_api_key, LLMConfigurationError
 except Exception as e:
     raise RuntimeError("This backend requires nl2apx.py and af_clingo.py in the same folder.") from e
 
@@ -132,6 +132,19 @@ def extraction_summary(meta: Dict[str, Any], attacks: Set[Tuple[str,str]]):
 def translate_set(S: frozenset, atom2id: Dict[str,str]) -> List[str]:
     return sorted([atom2id.get(a, a) for a in S])
 
+# ---------------- Middleware ----------------
+class APIKeyMiddleware(BaseHTTPMiddleware):
+    """Middleware to handle request-scoped API keys via X-Gemini-API-Key header."""
+    
+    async def dispatch(self, request: Request, call_next):
+        # Extract API key from header
+        api_key = request.headers.get("X-Gemini-API-Key")
+        if api_key:
+            set_request_api_key(api_key)
+        
+        response = await call_next(request)
+        return response
+
 # ---------------- API models ----------------
 class RunRequest(BaseModel):
     text: str = Field(..., description="Full arguments.txt content (blocks separated by blank lines)")
@@ -158,6 +171,7 @@ class RepairRequest(RunRequest):
 
 # ---------------- App ----------------
 app = FastAPI(title="AS Playground API", version="0.1.0")
+app.add_middleware(APIKeyMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -169,11 +183,18 @@ app.add_middleware(
 # ---------------- Core handlers ----------------
 @app.post("/api/run")
 def api_run(req: RunRequest):
-    ids, id2text, atoms, id2atom, atom2id, attacks, meta = build_af_from_text(
-        req.text, relation=req.relation,
-        jaccard=req.jaccard, min_overlap=req.min_overlap,
-        use_llm=req.use_llm, llm_threshold=req.llm_threshold, llm_mode=req.llm_mode
-    )
+    try:
+        ids, id2text, atoms, id2atom, atom2id, attacks, meta = build_af_from_text(
+            req.text, relation=req.relation,
+            jaccard=req.jaccard, min_overlap=req.min_overlap,
+            use_llm=req.use_llm, llm_threshold=req.llm_threshold, llm_mode=req.llm_mode
+        )
+    except (LLMConfigurationError, RuntimeError) as e:
+        if req.use_llm:
+            raise HTTPException(400, f"LLM requested but not available: {str(e)}")
+        else:
+            # This shouldn't happen if use_llm=False, but handle gracefully
+            raise HTTPException(500, f"Unexpected LLM error: {str(e)}")
 
     # Semantics
     G  = af_clingo.grounded(atoms, attacks)
@@ -375,11 +396,18 @@ def verify_after_text(original_text: str, new_blocks: List[str], verify_relation
 @app.post("/api/repair")
 def api_repair(req: RepairRequest):
     # 1) Baseline AF
-    ids, id2text, atoms, id2atom, atom2id, attacks, meta = build_af_from_text(
-        req.text, relation=req.relation,
-        jaccard=req.jaccard, min_overlap=req.min_overlap,
-        use_llm=req.use_llm, llm_threshold=req.llm_threshold, llm_mode=req.llm_mode
-    )
+    try:
+        ids, id2text, atoms, id2atom, atom2id, attacks, meta = build_af_from_text(
+            req.text, relation=req.relation,
+            jaccard=req.jaccard, min_overlap=req.min_overlap,
+            use_llm=req.use_llm, llm_threshold=req.llm_threshold, llm_mode=req.llm_mode
+        )
+    except (LLMConfigurationError, RuntimeError) as e:
+        if req.use_llm:
+            raise HTTPException(400, f"LLM requested but not available: {str(e)}")
+        else:
+            # This shouldn't happen if use_llm=False, but handle gracefully
+            raise HTTPException(500, f"Unexpected LLM error: {str(e)}")
     if req.target not in ids:
         raise HTTPException(400, f"Target {req.target!r} not found. Known: {ids}")
     t_atom = id2atom[req.target]
@@ -409,7 +437,11 @@ def api_repair(req: RepairRequest):
     new_blocks = build_new_blocks(new_ids, groups_ids, id2text, use_llm_text=req.llm_generate)
 
     # 5) Verify on augmented text
-    augmented_text, after_tuple = verify_after_text(req.text, new_blocks, verify_relation=req.verify_relation)
+    try:
+        augmented_text, after_tuple = verify_after_text(req.text, new_blocks, verify_relation=req.verify_relation)
+    except (LLMConfigurationError, RuntimeError) as e:
+        # verify_after_text uses use_llm=False, so this shouldn't happen, but handle gracefully
+        raise HTTPException(500, f"Unexpected LLM error during verification: {str(e)}")
     ids2, id2text2, atoms2, id2atom2, atom2id2, attacks2, meta2 = after_tuple
 
     t_atom2 = id2atom2.get(req.target)

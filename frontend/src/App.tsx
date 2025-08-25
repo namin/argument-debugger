@@ -35,6 +35,7 @@ export default function App() {
   const [repairFanout, setRepairFanout] = useState(0)
   const [repairMinCov, setRepairMinCov] = useState<number | undefined>(undefined)
   const [repairResult, setRepairResult] = useState<any | null>(null)
+  const [apiKey, setApiKey] = useState<string>("")
 
   const nodes = resp?.nodes || []
   const edges = resp?.edges || []
@@ -48,10 +49,10 @@ export default function App() {
         text, relation, use_llm: useLLM, llm_mode: llmMode,
         jaccard, min_overlap: minOverlap, sem: "all", target, want_markdown: true
       }
-      const out = await runSemantics(body)
+      const out = await runSemantics(body, apiKey || null)
       setResp(out)
     } catch (e:any) {
-      alert(e.message || String(e))
+      handleError(e)
     } finally { setLoading(false) }
   }
 
@@ -64,13 +65,13 @@ export default function App() {
         repair: true, k: repairK, fanout: repairFanout,
         min_coverage: repairMinCov, verify_relation: "explicit"
       }
-      const out = await runRepair(body)
+      const out = await runRepair(body, apiKey || null)
       setRepairResult(out)
       // also refresh baseline run panel from the result.before
       if (out?.before) setResp(out.before)
       setActiveTab("graph")
     } catch (e:any) {
-      alert(e.message || String(e))
+      handleError(e)
     } finally { setLoading(false) }
   }
 
@@ -82,6 +83,39 @@ export default function App() {
 
   const after = repairResult?.after
   const newClaims = repairResult?.new_claims?.join("\n\n")
+
+  function handleError(error: any) {
+    let message = "An unexpected error occurred."
+    
+    if (error?.message) {
+      const errorMsg = error.message
+      
+      // Parse API error responses
+      if (errorMsg.includes("400 Bad Request:") && errorMsg.includes("LLM requested but not available")) {
+        message = "🤖 The use-LLM argument analysis requires a Gemini API key.\n\n" +
+                 "You can:\n" +
+                 "1. Get a free API key: https://aistudio.google.com/app/apikey\n" +
+                 "2. Enter it in the 'API Key' field\n" +
+                 "3. Try again!"
+      } else if (errorMsg.includes("400 Bad Request:")) {
+        // Extract the detail from the JSON response
+        try {
+          const match = errorMsg.match(/{"detail":"([^"]+)"/)
+          if (match) {
+            message = match[1]
+          } else {
+            message = errorMsg.replace("400 Bad Request: ", "")
+          }
+        } catch {
+          message = errorMsg
+        }
+      } else {
+        message = errorMsg
+      }
+    }
+    
+    alert(message)
+  }
 
   return (
       <div style={{ padding: 16, maxWidth: 1200, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
@@ -116,6 +150,28 @@ export default function App() {
               <option value="augment">augment</option>
               <option value="override">override</option>
             </select>
+          </div>
+          <div className="row">
+            <label>API Key</label>
+            <input 
+              type="password" 
+              value={apiKey} 
+              onChange={e=>setApiKey(e.target.value)} 
+              placeholder="Optional: Gemini API key" 
+              style={{width: 200}}
+              disabled={!useLLM}
+              title={useLLM ? "Enter your Gemini API key for AI-powered analysis" : "Enable LLM first"}
+            />
+            {useLLM && !apiKey && (
+              <a 
+                href="https://aistudio.google.com/app/apikey" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{fontSize: '12px', marginLeft: '8px', color: '#666'}}
+              >
+                Get API key
+              </a>
+            )}
             <label>target</label>
             <input type="text" value={target} onChange={e=>setTarget(e.target.value)} style={{ width: 80 }}/>
           </div>
