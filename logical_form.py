@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
 Logical Form Analyzer
-FOL representation uses plain dataclasses instead of Pydantic for recursive structures
+- Translation from natural language to first-order logic (FOL)
+- Analysis with Answer Set Programming (ASP)
+- Certification with Lean theorem prover
 """
 
 import clingo
