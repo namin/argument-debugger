@@ -51,7 +51,7 @@ Toy AF bis:
 - **Conflict‑free**: $∅,\\{A\\},\\{B\\}$
 - **Admissible**: $∅,\\{A\\},\\{B\\}$
 - **Complete**: $\\{A\\},\\{B\\}$
-- **Grounded**: $∅$.
+- **Grounded**: $∅$
 - **Preferred**: $\\{A\\},\\{B\\}$
 - **Stable**: $\\{A\\},\\{B\\}$
 </details>
