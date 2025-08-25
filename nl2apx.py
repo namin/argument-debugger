@@ -182,16 +182,9 @@ if _HAVE_PYDANTIC:
 class LLMAttackExtractor:
     def __init__(self, threshold: float = 0.55):
         self.threshold = threshold
-        self.client = None
-        try:
-            self.client = init_llm_client()
-        except Exception as e:
-            self.client = None
-            print(f"% [WARN] LLM disabled: {e}")
+        self.client = init_llm_client()
 
     def infer_edges(self, blocks: List[str]) -> Set[Tuple[int, int]]:
-        if self.client is None:
-            return set()
         listing = "\n".join([f"#{i+1}: {blocks[i]}" for i in range(len(blocks))])
         prompt = f"""
 You are extracting a Dung Abstract Argumentation Framework (AF) from a list of short argument items.
