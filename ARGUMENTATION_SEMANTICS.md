@@ -18,4 +18,11 @@ Formal definitions:
 - For $x∈A$, let $\text{Att}(x)={b∈A∣(b,x)∈R}$ (the attackers of $x$).
 - A set $S⊆A$ defends $𝑎$ iff for every $b∈\text{Att}(a)$ there is $c∈S$ with $(c,b)∈R$.
 - The characteristic function: $F(S)={a∈A∣S \text{defends} a}$.
-- ...
+- The grounded extension is the least fixed point of $F$, obtained by iterating from $∅$: $𝑆_0 = ∅$, $S_{i+1} = F(S_i)$ until $S_{i+1} = S_i$.
+
+Toy AF:
+- $A={A,B,C}$
+- $R={(A,B),(B,C)}$ (i.e., $A→B$ and $B→C$)
+
+Intuition box: starting from nothing, we first accept only arguments that nobody attacks; then, with those in hand, we also accept anything they (as a set) defend, and so on, until nothing changes.
+
