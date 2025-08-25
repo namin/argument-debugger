@@ -205,7 +205,9 @@ export default function App() {
           )}
 
           {activeTab === "markdown" && (
-            <div className="code" style={{whiteSpace:"pre-wrap"}}>{resp?.markdown || "(no markdown)"}</div>
+            <div className="code" style={{whiteSpace:"pre-wrap"}}>
+              {repairResult?.markdown?.integrated || resp?.markdown || "(no markdown)"}
+            </div>
           )}
 
           {activeTab === "json" && (

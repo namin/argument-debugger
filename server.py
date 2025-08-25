@@ -421,6 +421,32 @@ def api_repair(req: RepairRequest):
     idx_edges2 = idx_edges_from_attacks(ids2, atom2id2, attacks2)
     apx_after = nl2apx.emit_apx(ids2, id2text2, idx_edges2, provenance=meta2)
 
+    before_md = ""
+    after_md = ""
+    integrated_md = ""
+    if _HAVE_ARGSEM:
+        try:
+            before_md = AS.markdown_report("(before)", ids, id2text, atoms, id2atom, atom2id, attacks, meta,
+                                        target_id=req.target, stance_limit=req.max_pref_cards if hasattr(req, "max_pref_cards") else 4, llm_summarize=False)
+            after_md  = AS.markdown_report("(after)",  ids2, id2text2, atoms2, id2atom2, atom2id2, attacks2, meta2,
+                                        target_id=req.target, stance_limit=req.max_pref_cards if hasattr(req, "max_pref_cards") else 4, llm_summarize=False)
+            # Light integrated header
+            pc = {"k": k_out, "n": n_out, "frac": cov_after}
+            integrated_md = (
+                f"# Integrated Repair Report — target {req.target}\n\n"
+                f"- Preferred credulous before? **{'YES' if cred_before else 'NO'}**\n"
+                f"- Preferred coverage before: **{k_in}/{n_pf} ≈ {cov_before:.2f}**\n"
+                f"- Direct blockers: {', '.join(blocker_ids) if blocker_ids else '(none)'}\n"
+                f"- Groups → new nodes: " + "; ".join(f"{nid}→({', '.join(gids)})" for nid, gids in zip(new_ids, groups_ids)) + "\n\n"
+                "## New claims\n" + "\n\n".join(new_blocks) + "\n\n"
+                "## Verification\n"
+                f"- Preferred credulous after? **{'YES' if cred_after else 'NO'}**\n"
+                f"- Preferred coverage after: **{pc['k']}/{pc['n']} ≈ {pc['frac']:.2f}**\n\n"
+                "----\n\n## BEFORE\n\n" + before_md + "\n----\n\n## AFTER\n\n" + after_md
+            )
+        except Exception as e:
+            integrated_md = f"(integrated markdown unavailable: {e})"
+
     # Return integrated payload
     return {
         "before": api_run(RunRequest(**{**req.model_dump(), "want_markdown": True, "repair": False})),
@@ -449,7 +475,8 @@ def api_repair(req: RepairRequest):
             "target": req.target,
             "blockers": blocker_ids,
             "groups": [{"new_id": nid, "attacks": gids} for nid, gids in zip(new_ids, groups_ids)],
-        }
+        },
+        "markdown": { "before": before_md, "after": after_md, "integrated": integrated_md }
     }
 
 # Health check
