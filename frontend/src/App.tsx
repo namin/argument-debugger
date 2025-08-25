@@ -28,7 +28,7 @@ export default function App() {
            <img 
             src="/github-mark.png" 
             alt="GitHub" 
-            style={{width: 16, height: 16, opacity: 0.7}}
+            style={{width: 16, height: 16}}
           />
         </a>
       </header>
