@@ -102,7 +102,7 @@ export default function App() {
       
       // Parse API error responses
       if (errorMsg.includes("400 Bad Request:") && errorMsg.includes("LLM requested but not available")) {
-        message = "🤖 The use-LLM argument analysis requires a Gemini API key.\n\n" +
+        message = "🤖 Action requires a Gemini API key.\n\n" +
                  "You can:\n" +
                  "1. Get a free API key: https://aistudio.google.com/app/apikey\n" +
                  "2. Enter it in the 'API Key' field\n" +
@@ -163,15 +163,19 @@ export default function App() {
           repair_stance: params.repair,
         })
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (!r.ok) {
+        const errorText = await r.text();
+        throw new Error(`${r.status} ${r.statusText}: ${errorText}`);
+      }
       const j = await r.json();
       setWinnersState(prev => ({ ...prev, resp: j, loading: false }));
     } catch (e: any) {
       setWinnersState(prev => ({ 
         ...prev, 
-        error: e?.message || "Request failed", 
+        error: null, 
         loading: false 
       }));
+      handleError(e);
     }
   }
 
@@ -217,17 +221,16 @@ export default function App() {
               onChange={e=>setApiKey(e.target.value)} 
               placeholder="Optional: Gemini API key" 
               style={{width: 200}}
-              disabled={!useLLM}
-              title={useLLM ? "Enter your Gemini API key for AI-powered analysis" : "Enable LLM first"}
+              title="Enter your Gemini API key for AI-powered analysis"
             />
-            {useLLM && !apiKey && (
+            {!apiKey && (
               <a 
                 href="https://aistudio.google.com/app/apikey" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 style={{fontSize: '12px', marginLeft: '8px', color: '#666'}}
               >
-                Get API key
+              Get API key
               </a>
             )}
             <label>target</label>

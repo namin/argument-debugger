@@ -10,11 +10,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Set, Tuple
 from pydantic import BaseModel
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 import tempfile, os
 
 import nl2apx as NL
 import af_clingo
+from llm import LLMConfigurationError
 
 # ad.py is optional at import time; endpoint will report if missing
 try:
@@ -227,7 +228,11 @@ def _md_winners_report(sem_mode: str, ids, id2text, id2atom, meta, stances):
 
 @router.post("/winners")
 def winners_endpoint(req: WinnersRequest):
-    ids, id2text, atoms, attacks, id2atom, atom2id, meta = _build_af_from_text(req)
+    try:
+        ids, id2text, atoms, attacks, id2atom, atom2id, meta = _build_af_from_text(req)
+    except (LLMConfigurationError, RuntimeError) as e:
+        raise HTTPException(400, f"LLM requested but not available: {str(e)}")
+    
     ext = _winners(atoms, attacks, req.winners)
     if req.limit_stances and len(ext) > req.limit_stances:
         ext = ext[:req.limit_stances]
@@ -236,7 +241,10 @@ def winners_endpoint(req: WinnersRequest):
     for i, S_atoms in enumerate(ext, 1):
         mids = sorted([atom2id[a] for a in S_atoms])
         text = _stance_text(mids, id2text)
-        ad_res = _analyze_stance_with_ad(text, want_repair=req.repair_stance) if text else {"error": "empty stance text"}
+        try:
+            ad_res = _analyze_stance_with_ad(text, want_repair=req.repair_stance) if text else {"error": "empty stance text"}
+        except (LLMConfigurationError, RuntimeError) as e:
+            raise HTTPException(400, f"LLM requested but not available: {str(e)}")
         stances.append({"name": f"S{i}", "members_ids": mids, "ad": ad_res})
 
     md = _md_winners_report(req.winners, ids, id2text, id2atom, meta, stances)
