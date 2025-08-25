@@ -48,7 +48,7 @@ Toy AF bis:
   <summary>Worked-out properties of toy AF bis</summary>
 
 - $F(∅) = ∅$
-- **Conflict‑free**: $∅, $\\{A\\}$, $\\{B\\}$
+- **Conflict‑free**: $∅$, $\\{A\\}$, $\\{B\\}$
 - **Admissible**: $∅$, $\\{A\\}$, $\\{B\\}$
 - **Complete**: $∅$, $\\{A\\}$, $\\{B\\}$
 - **Grounded**: $∅$
