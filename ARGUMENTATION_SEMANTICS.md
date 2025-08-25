@@ -32,8 +32,8 @@ Worked-out Toy AF:
 - $F({A,C}) = {A,C}$
 - **Conflict‑free**: $∅,{A},{B},{C},{A,C}$.
 - **Admissible**: $∅,{A},{A,C}$.
-- **Complete**: TODO admissible and contains every argument it defends.
+- **Complete**: ${A,C}$,
 - **Grounded**: ${A,C}$.
-- **Preferred**: TODO maximal (by $⊆$) admissible extensions (credulous choices).
+- **Preferred**: ${A,C}$.
 - **Stable**: $A∖S={B}$, and $A∈S$ attacks $B$, so $S={A,C}$ is stable.
 </details>
