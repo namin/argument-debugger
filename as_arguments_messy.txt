@@ -1,0 +1,59 @@
+ID: M1
+We should adopt downtown congestion pricing to cut gridlock and fund faster buses.
+
+ID: M2
+Customers will avoid downtown if you charge them to enter; small shops will be the first to suffer.
+
+ID: M3
+That fear didn’t pan out elsewhere: London, Stockholm, and Singapore saw traffic fall and retail recover, with revenue reinvested in transit.
+
+ID: M4
+The buses are unreliable as-is. Charging drivers before fixing transit is backwards.
+
+ID: M5
+The proposal includes off-peak discounts for delivery vans and a low-income rebate—both aimed at fairness concerns.
+
+ID: M6
+A flat fee is regressive; it hits lower-wage commuters harder than executives.
+
+ID: M7
+Skipping any fee keeps pollution concentrated near schools; we already exceed safe NO₂ levels on many days.
+
+ID: M8
+Congestion dropped ~30% during lockdowns without any fee. Traffic is easing as more people hybrid-work—fees are unnecessary now.
+
+ID: M9
+Even modest peak pricing shifts marginal trips. Ring-fenced revenue for bus lanes and signal priority compounds those gains.
+
+ID: M10
+Businesses rely on just-in-time deliveries; toll checkpoints will create new queues and delays.
+
+ID: M11
+There are no “checkpoints”: ALPR cameras and dynamic pricing bill post-trip—no barrier queues.
+
+ID: M12
+Or we could just tweak parking rates by time-of-day. No need to invent a new bureaucracy.
+
+ID: M13
+Pilot first: 6 months, audited metrics, and opt-out blocks if targets aren’t met. That de-risks the rollout.
+
+ID: M14
+Ring-fenced? Please. Politicians always raid the pot for pet projects; the transit fund won’t be different.
+
+ID: M15
+State law requires a dedicated transit trust, and last year’s audit confirmed compliance; raiding it isn’t legal.
+
+ID: M16
+Delivery drivers can’t eat the fee. Margins are razor-thin; this is unfair.
+
+ID: M17
+Exemptions gut the policy: once you hand them out for vans and special cases, nobody actually pays.
+
+ID: M18
+Not so—the fee still applies to most single-occupancy commuter trips at peaks; that’s the bulk of traffic.
+
+ID: M19
+Tourists will balk at paying to visit; downtown hospitality will take the hit.
+
+ID: M20
+A small peak parking fee won’t deter day visitors; hotels already charge more. Major museums endorsed the plan after seeing weekend exemptions.

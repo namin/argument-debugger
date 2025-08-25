@@ -1,0 +1,15 @@
+ID: A1
+ATTACKS: A2
+Approve this quarter to seize first‑mover advantage.
+
+ID: A2
+ATTACKS: A1
+Do not approve; compliance review is incomplete.
+
+ID: A3
+ATTACKS: A2
+Critical compliance items are cleared; residual risk is small.
+
+ID: A4
+ATTACKS: A1
+Rushing approval increases defect risk.
