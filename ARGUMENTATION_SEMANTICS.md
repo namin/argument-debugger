@@ -29,13 +29,24 @@ Toy AF:
 <details>
   <summary>Worked-out properties of toy AF</summary>
 
-- $F(∅) = {A}$.<br/>
-- $F(\\{A\\}) = \\{A, C\\}$.<br/>
-- $F(\\{A,C\\}) = \\{A,C\\}$.<br/>
-- **Conflict‑free**: $∅,\\{A\\},\\{B\\},\\{C\\},\\{A,C\\}$.<br/>
-- **Admissible**: $∅,\\{A\\},\\{A,C\\}$.<br/>
-- **Complete**: $\\{A,C\\}$.<br/>
-- **Grounded**: $\\{A,C\\}$.<br/>
-- **Preferred**: $\\{A,C\\}$.<br/>
-- **Stable**: $A∖S=\\{B\\}$, and $A∈S$ attacks $B$, so $S=\\{A,C\\}$ is stable.<br/>
+- $F(∅) = {A}$
+- $F(\\{A\\}) = \\{A, C\\}$
+- $F(\\{A,C\\}) = \\{A,C\\}$
+- **Conflict‑free**: $∅,\\{A\\},\\{B\\},\\{C\\},\\{A,C\\}$
+- **Admissible**: $∅,\\{A\\},\\{A,C\\}$
+- **Complete**: $\\{A,C\\}$
+- **Grounded**: $\\{A,C\\}$
+- **Preferred**: $\\{A,C\\}$
+- **Stable**: $A∖S=\\{B\\}$, and $A∈S$ attacks $B$, so $S=\\{A,C\\}$ is stable.
+</details>
+
+Toy AF bis:
+- $A=\\{A,B\\}$ 
+- $R=\\{(A,B),(B,A)\\}$ (mutual attack)
+
+<details>
+  <summary>Worked-out properties of toy AF</summary>
+
+- $F(∅) = ∅$
+- **Grounded**: $∅$.
 </details>
