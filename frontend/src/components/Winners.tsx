@@ -98,8 +98,8 @@ export default function Winners({
             style={{ width: 60 }}
           />
         </label>
-        <button onClick={run} disabled={loading || !value.trim()}>
-          {loading ? "Analyzing..." : "Analyze winners (ad.py)"}
+        <button className="btn secondary" onClick={run} disabled={loading || !value.trim()}>
+          {loading ? "Analyzing..." : "Analyze"}
         </button>
       </div>
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Winners from "./Winners";
 import SemanticsTable from "./SemanticsTable";
 
@@ -26,40 +26,35 @@ export default function Workspace({
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Debounce the AF compute a bit to keep typing smooth
-  useEffect(() => {
-    const t = setTimeout(() => {
-      (async () => {
-        if (!text.trim()) {
-          setAf(null);
-          return;
-        }
-        setLoading(true);
-        setErr(null);
-        try {
-          const r = await fetch("/api/run/af", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              text,
-              relation,
-              use_llm: useLLM,
-              llm_mode: "augment",
-              llm_threshold: 0.55,
-            }),
-          });
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          const j = await r.json();
-          setAf(j);
-        } catch (e: any) {
-          setErr(e?.message || "request failed");
-        } finally {
-          setLoading(false);
-        }
-      })();
-    }, 350);
-    return () => clearTimeout(t);
-  }, [text, relation, useLLM]);
+  // Manual analyze function
+  const handleAnalyze = async () => {
+    if (!text.trim()) {
+      setAf(null);
+      return;
+    }
+    setLoading(true);
+    setErr(null);
+    try {
+      const r = await fetch("/api/run/af", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          relation,
+          use_llm: useLLM,
+          llm_mode: "augment",
+          llm_threshold: 0.55,
+        }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      setAf(j);
+    } catch (e: any) {
+      setErr(e?.message || "request failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const ids: string[] = af?.input?.ids ?? [];
   const id2atom: Record<string, string> = af?.input?.id2atom ?? {};
@@ -98,7 +93,13 @@ export default function Workspace({
             />{" "}
             use LLM edges
           </label>
-          {loading && <span className="muted">Analyzing…</span>}
+          <button 
+            className="btn secondary" 
+            onClick={handleAnalyze} 
+            disabled={loading || !text.trim()}
+          >
+            {loading ? "Analyzing…" : "Analyze"}
+          </button>
           {err && <span className="error">{err}</span>}
         </div>
 
