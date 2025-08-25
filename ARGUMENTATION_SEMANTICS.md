@@ -20,9 +20,20 @@ Formal definitions:
 - The characteristic function: $F(S)={a∈A∣S \text{defends} a}$.
 - The grounded extension is the least fixed point of $F$, obtained by iterating from $∅$: $𝑆_0 = ∅$, $S_{i+1} = F(S_i)$ until $S_{i+1} = S_i$.
 
-Toy AF:
+Intuition box: starting from nothing, we first accept only arguments that nobody attacks; then, with those in hand, we also accept anything they (as a set) defend, and so on, until nothing changes.
+
+Worked-out Toy AF:
 - $A={A,B,C}$
 - $R={(A,B),(B,C)}$ (i.e., $A→B$ and $B→C$)
 
-Intuition box: starting from nothing, we first accept only arguments that nobody attacks; then, with those in hand, we also accept anything they (as a set) defend, and so on, until nothing changes.
-
+<details>
+- $F(∅) = {A}$
+- $F({A}) = {A, C}$
+- $F({A,C}) = {A,C}$
+- **Conflict‑free**: $∅,{A},{B},{C},{A,C}$.
+- **Admissible**: $∅,{A},{A,C}$.
+- **Complete**: TODO admissible and contains every argument it defends.
+- **Grounded**: ${A,C}$.
+- **Preferred**: TODO maximal (by $⊆$) admissible extensions (credulous choices).
+- **Stable**: $A∖S={B}$, and $A∈S$ attacks $B$, so $S={A,C}$ is stable.
+</details>
