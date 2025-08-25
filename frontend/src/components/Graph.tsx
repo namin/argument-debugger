@@ -65,6 +65,10 @@ const Graph: React.FC<Props> = ({ nodes, edges, highlightId }) => {
     })
     cyRef.current = cy
 
+    // fit to container with padding
+    cy.resize()
+    cy.fit(undefined, 20)
+
     // grounded flag for styling
     nodes.forEach(n => {
       const node = cy.getElementById(n.id)
@@ -78,7 +82,7 @@ const Graph: React.FC<Props> = ({ nodes, edges, highlightId }) => {
     return () => { cy.destroy() }
   }, [nodes, edges, highlightId])
 
-  return <div ref={ref} style={{ width: "100%", height: "480px", borderRadius: 12, border: "1px solid #1f2a44", background:"#0e1426" }} />
+  return <div ref={ref} style={{ width: "100%", maxWidth: "100%", height: "480px", borderRadius: 12, border: "1px solid #1f2a44", background:"#0e1426", overflow: "hidden", boxSizing: "border-box" }} />
 }
 
 export default Graph
