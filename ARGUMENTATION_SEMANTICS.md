@@ -17,7 +17,7 @@ Formal definitions:
 - An AF is $⟨A,R⟩$ with arguments $A$ and attacks $R⊆A×A$.
 - For $x∈A$, let $\text{Att}(x)=\{b∈A∣(b,x)∈R\}$ (the attackers of $x$).
 - A set $S⊆A$ defends $𝑎$ iff for every $b∈\text{Att}(a)$ there is $c∈S$ with $(c,b)∈R$.
-- The characteristic function: $F(S)=\{a∈A∣S \text{defends} a\}$.
+- The characteristic function: $F(S)=\{a∈A∣S \text{ defends } a\}$.
 - The grounded extension is the least fixed point of $F$, obtained by iterating from $∅$: $𝑆_0 = ∅$, $S_{i+1} = F(S_i)$ until $S_{i+1} = S_i$.
 
 Intuition box: starting from nothing, we first accept only arguments that nobody attacks; then, with those in hand, we also accept anything they (as a set) defend, and so on, until nothing changes.
