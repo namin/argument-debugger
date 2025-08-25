@@ -1,0 +1,26 @@
+ID: A1
+We should adopt a 3-day in-office policy to boost collaboration and team cohesion.
+
+ID: A2
+ATTACKS: A1
+Fully remote work reduces commute time and often increases productivity for focused tasks.
+
+ID: A3
+ATTACKS: A1
+Mandating office days harms inclusion for caregivers and colleagues with long commutes.
+
+ID: A4
+ATTACKS: A2
+Creative brainstorm quality drops when everyone is remote; in-person sessions yield better idea diversity.
+
+ID: A5
+ATTACKS: A3
+Providing travel stipends and flexible hours mitigates commute and caregiving concerns.
+
+ID: A6
+ATTACKS: A1
+We should not adopt a 3-day in-office policy; make it optional instead.
+
+ID: A7
+ATTACKS: A6
+Purely optional attendance leads to knowledge silos; a minimal in-office cadence prevents team drift.
