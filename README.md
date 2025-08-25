@@ -81,8 +81,9 @@ Show Remaining Issues
 ## References
 
 - [Datasets](DATASETS.md): datasets we could use
-- [_An introduction to argumentation semantics_](https://doi.org/10.1017/S0269888911000166). Baroni, Caminada & Giacomin (2011).
-- [_On the acceptability of arguments and its fundamental role in nonmonotonic reasoning, logic programming and n-person games_](https://www.sciencedirect.com/science/article/pii/000437029400041X). Dung (1995).
+- Argumentation Semantics ([cheatsheet](ARGUMENTATION_SEMANTICS.md)):
+  - [_An introduction to argumentation semantics_](https://doi.org/10.1017/S0269888911000166). Baroni, Caminada & Giacomin (2011).
+  - [_On the acceptability of arguments and its fundamental role in nonmonotonic reasoning, logic programming and n-person games_](https://www.sciencedirect.com/science/article/pii/000437029400041X). Dung (1995).
 - [ASP encodings for several semantics and reasoning tasks in Dung AFs](https://www.dbai.tuwien.ac.at/research/argumentation/aspartix/dung.html)
 - [International Competition on Computational Models of Argumentation (ICCMA)](https://www.argumentationcompetition.org/)
 - [ArgDown](https://argdown.org/)
