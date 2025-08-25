@@ -14,7 +14,7 @@ Approach
 1) Build the AF from the file using nl2apx (explicit/heuristic/LLM per flags).
 2) Compute direct attackers of T and rank them (persistent vs soft across preferred).
 3) Group blockers into ≤ k new defender nodes; each new node attacks one or more blockers.
-4) Generate natural-language text for each new node (optional, via Gemini).
+4) Generate natural-language text for each new node (optional, via Gemini) or use a deterministic template.
 5) Emit a `new_claims.txt` with:
       ID: R1
       ATTACKS: A2, A3
@@ -23,32 +23,11 @@ Approach
    `--relation explicit` (so only the stated new edges are added) and check if
    T is now credulously accepted under preferred.
 
-Why this works
----------------
-Preferred requires admissibility. By adding new nodes that attack *all direct
-attackers of T*, and by ensuring no one attacks these new nodes (no incoming
-edges are added in explicit mode), the set {T} ∪ {new nodes} is admissible and
-extends to a preferred extension — hence T becomes *credulously accepted*.
-
-Usage
-------
-# Plan + generate text + verify, allow a single new node that covers all blockers
-python argsem_repair.py arguments.txt --target A1 --k 1 --use-llm-extract --llm-generate
-
-# Plan with up to 3 new nodes, one blocker per node (fanout=1), no LLM text (templates)
-python argsem_repair.py arguments.txt --target A1 --k 3 --fanout 1 --write-new new_claims.txt
-
-# Produce JSON plan only (no files written)
-python argsem_repair.py arguments.txt --target A1 --k 2 --json-out plan.json --dry-run
-
-# Verify only (when you already have a new_claims.txt)
-python argsem_repair.py arguments.txt --target A1 --verify-only --new new_claims.txt
-
-Outputs
---------
-- new_claims.txt (unless --dry-run or --verify-only)
-- repaired.txt (original + new, unless --no-apply)
-- repair_report.md (optional --md-out), plus JSON (--json-out)
+Guardrails
+-----------
+- If the target is already credulously preferred *and* you do not pass --force,
+  the script will SKIP repairs. You can also require a stronger goal using
+  --min-coverage (fraction of preferred stances that must contain T), e.g. 1.0.
 
 Requires
 ---------
@@ -124,6 +103,15 @@ def preferred_accepts(atoms: List[str], attacks: Set[Tuple[str,str]], target_ato
     prefs = af_clingo.preferred(atoms, attacks)
     return any(target_atom in S for S in prefs)
 
+def preferred_coverage(atoms: List[str], attacks: Set[Tuple[str,str]], target_atom: str) -> Tuple[int,int,float]:
+    """Return (k_in, n_pf, frac) where k_in is number of preferred sets containing target, n_pf is total preferred sets."""
+    prefs = af_clingo.preferred(atoms, attacks)
+    n = len(prefs)
+    if n == 0:
+        return (0, 0, 0.0)
+    k = sum(1 for S in prefs if target_atom in S)
+    return (k, n, k/n if n > 0 else 0.0)
+
 def preferred_attacker_frequencies(atoms: List[str], attacks: Set[Tuple[str,str]], target_atom: str) -> Dict[str, int]:
     """How many preferred extensions contain each attacker. Useful to rank 'persistent' vs 'soft'."""
     prefs = af_clingo.preferred(atoms, attacks)
@@ -143,20 +131,21 @@ def group_blockers(blockers: List[str], k: int, fanout: int) -> List[List[str]]:
     Partition blockers into <= k groups; each group will be handled by one new defender node.
     - fanout=1  -> one blocker per new node (up to k blockers covered)
     - fanout>1  -> round-robin packing (<= fanout per node)
-    - fanout<=0 -> unlimited (try to fit all blockers into the first node if k>=1)
+    - fanout<=0 -> unlimited (try to fit all blockers into as few as 1 node, bounded by k)
     """
     if not blockers or k <= 0:
         return []
     if fanout <= 0:
-        # unlimited: one node can cover all blockers; respect k by making 1 group
+        # unlimited: one node can cover all blockers; respect k by making min(1,len(blockers)) groups
         return [blockers[:]] if k >= 1 else []
     if fanout == 1:
         return [[b] for b in blockers[:k]]
-    # bounded fanout: distribute in round-robin across up to k groups
-    groups = [[] for _ in range(min(k, max(1, (len(blockers)+fanout-1)//fanout)))]
+    # bounded fanout: distribute in round-robin across up to k groups, max fanout per group
+    gcount = min(k, max(1, (len(blockers)+fanout-1)//fanout))
+    groups = [[] for _ in range(gcount)]
     i = 0
     for b in blockers:
-        groups[i % len(groups)].append(b)
+        groups[i % gcount].append(b)
         i += 1
     return groups
 
@@ -228,13 +217,17 @@ def verify_after(original_path: str, new_blocks: List[str], target_id: str) -> D
     )
     t_atom2 = id2atom2.get(target_id, None)
     cred_after = preferred_accepts(atoms2, attacks2, t_atom2) if t_atom2 else False
+    k_after, n_after, cov_after = preferred_coverage(atoms2, attacks2, t_atom2) if t_atom2 else (0,0,0.0)
 
     return {
         "repaired_path": tmp_path,
+        "atoms": atoms2,
         "ids": ids2,
         "id2atom": id2atom2,
+        "atom2id": atom2id2,
         "attacks": sorted(list(attacks2)),
         "preferred_credulous_target": bool(cred_after),
+        "preferred_coverage_after": {"k": k_after, "n": n_after, "frac": cov_after},
     }
 
 # ---- CLI ----
@@ -262,6 +255,11 @@ def main():
     ap.add_argument("--json-out", type=str, default=None, help="Write JSON plan/report to this path.")
     ap.add_argument("--md-out", type=str, default=None, help="Write a Markdown summary report to this path.")
     ap.add_argument("--dry-run", action="store_true", help="Do not write files; just print plan/JSON.")
+    # Goal semantics tweaks
+    ap.add_argument("--force", action="store_true",
+                    help="Proceed even if the target is already credulously preferred.")
+    ap.add_argument("--min-coverage", type=float, default=None,
+                    help="Require target to appear in at least this fraction of preferred extensions (e.g., 1.0 for skeptical under preferred).")
     args = ap.parse_args()
 
     # 1) Baseline AF
@@ -280,31 +278,43 @@ def main():
 
     t_atom = id2atom[args.target]
     cred_before = preferred_accepts(atoms, attacks, t_atom)
+    k_in, n_pf, cov_before = preferred_coverage(atoms, attacks, t_atom)
 
     plan = {
         "path": args.path,
         "target": {"id": args.target, "atom": t_atom},
         "credulous_preferred_before": bool(cred_before),
+        "preferred_coverage_before": {"k": k_in, "n": n_pf, "frac": cov_before},
     }
 
-    if args.verify_only:
-        if not args.new or not os.path.exists(args.new):
-            raise SystemExit("--verify-only requires --new pointing to new_claims.txt")
-        with open(args.new, "r", encoding="utf-8") as f:
-            new_txt = f.read().strip()
-        new_blocks = [b.strip() for b in new_txt.split("\n\n") if b.strip()]
-        after = verify_after(args.path, new_blocks, args.target)
-        plan["verify_only"] = True
-        plan["after"] = after
+    # Early exit if goal already satisfied and not forced
+    goal_ok = cred_before
+    if args.min_coverage is not None:
+        goal_ok = goal_ok and (cov_before >= args.min_coverage)
+
+    if goal_ok and not args.force:
+        msg = {
+            "path": args.path,
+            "target": {"id": args.target, "atom": t_atom},
+            "credulous_preferred_before": bool(cred_before),
+            "preferred_coverage_before": {"k": k_in, "n": n_pf, "frac": cov_before},
+            "action": "skipped",
+            "reason": "goal already satisfied (use --force or raise --min-coverage to proceed)"
+        }
         if args.json_out:
             with open(args.json_out, "w", encoding="utf-8") as jf:
-                jf.write(json.dumps(plan, indent=2, ensure_ascii=False) + "\n")
+                jf.write(json.dumps(msg, indent=2, ensure_ascii=False) + "\n")
         if args.md_out:
-            ok = "YES" if after["preferred_credulous_target"] else "NO"
             with open(args.md_out, "w", encoding="utf-8") as mf:
-                mf.write(f"# Repair Verification\n\nTarget: {args.target}\n\nPreferred credulous after? **{ok}**\n")
+                mf.write(
+                    f"# Repair skipped\n\n"
+                    f"- Target: {args.target}\n"
+                    f"- Credulous preferred before: **{'YES' if cred_before else 'NO'}**\n"
+                    f"- Preferred coverage before: **{k_in}/{n_pf} ≈ {cov_before:.2f}**\n"
+                    f"- Reason: goal already satisfied. Use `--force` or `--min-coverage` to proceed.\n"
+                )
         if not (args.json_out or args.md_out):
-            print(json.dumps(plan, indent=2, ensure_ascii=False))
+            print(json.dumps(msg, indent=2, ensure_ascii=False))
         return
 
     # 2) Compute blockers & rank
@@ -317,9 +327,9 @@ def main():
     blocker_ids = [atom2id[b] for b in direct_blockers_sorted]
 
     # 3) Group into <= k defender nodes
-    k = max(1, args.k)
+    kmax = max(1, args.k)
     fanout = args.fanout
-    groups_ids = group_blockers(blocker_ids, k=k, fanout=fanout)
+    groups_ids = group_blockers(blocker_ids, k=kmax, fanout=fanout)
     new_ids = next_new_ids(ids, len(groups_ids), prefix="R")
 
     plan.update({
@@ -327,8 +337,21 @@ def main():
         "groups": [{"new_id": nid, "attacks_ids": gids} for nid, gids in zip(new_ids, groups_ids)],
         "llm_generate": bool(args.llm_generate),
         "fanout": fanout,
-        "k": k,
+        "k": kmax,
     })
+
+    # Edge-case: nothing to block (already credulous or no attackers)
+    if not groups_ids:
+        plan["note"] = "No blockers to address (either no attackers or goal already reached)."
+        if args.json_out:
+            with open(args.json_out, "w", encoding="utf-8") as jf:
+                jf.write(json.dumps(plan, indent=2, ensure_ascii=False) + "\n")
+        if args.md_out:
+            with open(args.md_out, "w", encoding="utf-8") as mf:
+                mf.write(f"# Repair Plan — target {args.target}\n\nNo blockers to address.\n")
+        if not (args.json_out or args.md_out):
+            print(json.dumps(plan, indent=2, ensure_ascii=False))
+        return
 
     # 4) Generate blocks (text)
     new_blocks = build_new_blocks(new_ids, groups_ids, id2text, llm_generate=args.llm_generate)
@@ -355,6 +378,7 @@ def main():
         lines = []
         lines.append(f"# Repair Plan — target {args.target}\n")
         lines.append(f"- Credulous preferred before? **{'YES' if cred_before else 'NO'}**")
+        lines.append(f"- Preferred coverage before: **{k_in}/{n_pf} ≈ {cov_before:.2f}**")
         lines.append(f"- Direct blockers (by preferred frequency): {', '.join(blocker_ids) if blocker_ids else '(none)'}")
         lines.append(f"- Groups → new nodes: " + "; ".join([f"{g['new_id']}→({', '.join(g['attacks_ids'])})" for g in plan['groups']]) )
         lines.append("")
@@ -363,7 +387,10 @@ def main():
             lines.append(nb.strip()); lines.append("")
         if "after" in plan:
             ok = "YES" if plan['after']['preferred_credulous_target'] else "NO"
-            lines.append(f"## Verification\nPreferred credulous after? **{ok}**")
+            pc = plan['after']['preferred_coverage_after']
+            lines.append("## Verification")
+            lines.append(f"- Preferred credulous after? **{ok}**")
+            lines.append(f"- Preferred coverage after: **{pc['k']}/{pc['n']} ≈ {pc['frac']:.2f}**")
         with open(args.md_out, "w", encoding="utf-8") as mf:
             mf.write("\n".join(lines) + "\n")
 

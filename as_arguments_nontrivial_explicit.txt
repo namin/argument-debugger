@@ -1,0 +1,13 @@
+ID: A1
+We should adopt a 3-day in-office policy to boost collaboration and team cohesion.
+
+ID: A2
+ATTACKS: A1
+Mandatory office days harm inclusion for caregivers and colleagues with long commutes.
+
+ID: A3
+ATTACKS: A1
+Remote work often increases productivity for focused tasks and reduces burnout.
+
+ID: A4
+Providing travel stipends and flexible hours can mitigate some commute burdens, but not for everyone.
