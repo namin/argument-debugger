@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Winners from "./Winners";
 import SemanticsTable from "./SemanticsTable";
 
@@ -11,54 +11,6 @@ type SemanticsPayload = {
   semi_stable: string[][];
 };
 
-// Component to display AF edges/attacks
-function EdgesDisplay({ attacks, meta }: { 
-  attacks: [string, string][]; 
-  meta: { explicit_edges?: any[]; heuristic_edges?: any[]; llm_edges?: any[] } 
-}) {
-  if (!attacks.length) {
-    return <div className="muted">No attacks found.</div>;
-  }
-
-  const explicitCount = meta.explicit_edges?.length ?? 0;
-  const heuristicCount = meta.heuristic_edges?.length ?? 0;
-  const llmCount = meta.llm_edges?.length ?? 0;
-
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: '12px', opacity: 0.7, marginBottom: 6 }}>
-      {attacks.length} attack{attacks.length !== 1 ? 's' : ''}
-        {(() => {
-          const breakdown = [
-            explicitCount > 0 && `${explicitCount} explicit`,
-            heuristicCount > 0 && `${heuristicCount} heuristic`, 
-            llmCount > 0 && `${llmCount} LLM`
-          ].filter(Boolean).join(', ');
-          return breakdown ? ` (${breakdown})` : '';
-        })()}
-      </div>
-      <div style={{ 
-        display: 'flex', 
-        flexWrap: 'wrap', 
-        gap: 6, 
-        fontSize: '12px',
-        fontFamily: 'ui-monospace, monospace' 
-      }}>
-        {attacks.map(([src, dst], i) => (
-          <span key={i} style={{ 
-            background: '#f0f0f0', 
-            padding: '2px 6px', 
-            borderRadius: 4,
-            border: '1px solid #ddd'
-          }}>
-            {src} → {dst}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function Workspace({
   text,
   onTextChange,
@@ -69,45 +21,59 @@ export default function Workspace({
   const [relation, setRelation] =
     useState<"auto" | "explicit" | "none">("auto");
   const [useLLM, setUseLLM] = useState(false);
+  const [target, setTarget] = useState<string>("");
 
   const [af, setAf] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Manual analyze function
-  const handleAnalyze = async () => {
-    if (!text.trim()) {
-      setAf(null);
-      return;
-    }
-    setLoading(true);
-    setErr(null);
-    try {
-      const r = await fetch("/api/run/af", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text,
-          relation,
-          use_llm: useLLM,
-          llm_mode: "augment",
-          llm_threshold: 0.55,
-        }),
-      });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const j = await r.json();
-      setAf(j);
-    } catch (e: any) {
-      setErr(e?.message || "request failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Keep target valid as IDs change
   const ids: string[] = af?.input?.ids ?? [];
+  useEffect(() => {
+    if (!ids.includes(target)) {
+      setTarget(ids[0] || "");
+    }
+  }, [ids]); // eslint-disable-line
+
+  // Debounce /api/run/af
+  useEffect(() => {
+    const t = setTimeout(() => {
+      (async () => {
+        if (!text.trim()) {
+          setAf(null);
+          return;
+        }
+        setLoading(true);
+        setErr(null);
+        try {
+          const r = await fetch("/api/run/af", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text,
+              relation,
+              use_llm: useLLM,
+              llm_mode: "augment",
+              llm_threshold: 0.55,
+              target: target || null,
+              include_markdown: true,
+              max_pref_cards: 4,
+            }),
+          });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const j = await r.json();
+          setAf(j);
+        } catch (e: any) {
+          setErr(e?.message || "request failed");
+        } finally {
+          setLoading(false);
+        }
+      })();
+    }, 350);
+    return () => clearTimeout(t);
+  }, [text, relation, useLLM, target]);
+
   const id2atom: Record<string, string> = af?.input?.id2atom ?? {};
-  const attacks: [string, string][] = af?.input?.attacks ?? [];
-  const meta = af?.input?.meta ?? {};
   const semantics: SemanticsPayload | undefined = af?.semantics;
 
   return (
@@ -143,13 +109,25 @@ export default function Workspace({
             />{" "}
             use LLM edges
           </label>
-          <button 
-            className="btn secondary" 
-            onClick={handleAnalyze} 
-            disabled={loading || !text.trim()}
-          >
-            {loading ? "Analyzing…" : "Analyze"}
-          </button>
+          <label>
+            Target:&nbsp;
+            <select
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              disabled={!ids.length}
+            >
+              {ids.length === 0 ? (
+                <option value="">—</option>
+              ) : (
+                ids.map((i) => (
+                  <option key={i} value={i}>
+                    {i}
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+          {loading && <span className="muted">Analyzing…</span>}
           {err && <span className="error">{err}</span>}
         </div>
 
@@ -161,27 +139,29 @@ export default function Workspace({
         />
       </div>
 
-      {/* Right: semantics table + winners deep-dive */}
+      {/* Right: semantics table + rich AF report + winners deep-dive */}
       <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
         <div className="section-title">Semantics snapshot</div>
-        <div className="card scroll">
-          {af ? (
-            <>
-              <EdgesDisplay attacks={attacks} meta={meta} />
-              {semantics ? (
-                <SemanticsTable ids={ids} id2atom={id2atom} semantics={semantics} />
-              ) : (
-                <div className="muted">Semantics computation failed.</div>
-              )}
-            </>
+        <div className="card scroll" style={{ marginBottom: 12 }}>
+          {semantics ? (
+            <SemanticsTable ids={ids} id2atom={id2atom} semantics={semantics} />
           ) : (
-            <div className="muted">No analysis yet.</div>
+            <div className="muted">No AF yet.</div>
           )}
         </div>
 
-        <div className="section-title" style={{ marginTop: 12 }}>
-          Winners
+        <div className="section-title">AF report (argsem‑style)</div>
+        <div className="card scroll" style={{ marginBottom: 12 }}>
+          {af?.report_markdown ? (
+            <div className="code" style={{ whiteSpace: "pre-wrap" }}>
+              {af.report_markdown}
+            </div>
+          ) : (
+            <div className="muted">No report yet.</div>
+          )}
         </div>
+
+        <div className="section-title">Winners (ad.py) — deep dive</div>
         <div className="card scroll">
           <Winners value={text} defaultWinners="stable" />
         </div>
@@ -189,3 +169,4 @@ export default function Workspace({
     </div>
   );
 }
+
