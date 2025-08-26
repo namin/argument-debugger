@@ -169,29 +169,7 @@ The UI calls just one endpoint: `POST /api/unified`.
 
 ---
 
-## 8) Migrating / Cleanup
-
-Now that the web app and CLI both use `unified_core`:
-
-- You can **retire**:
-  - `argsem.py` (the unified report supersedes it).
-  - `ad_on_winners.py` (now part of the unified pipeline).
-  - Generated files (`output.md`, `output2.md`, `output2_baseline.md`, `output_lean.md`).
-  - `dot2png` script (frontend no longer needs it).
-
-- Consider moving to `legacy/` (if you still want the code around):
-  - `baf.py`, `baf_integrated.py`, `ad_adapter.py`, `nl2apx_adapter.py`.
-  - `apxsolve.py` (reference-only).
-  - FOL/Lean track: `logical_form.py`, `logical_form_core.py`, `lean_bridge.py`, `TUTORIAL_FOL.md`.
-  - Extra example files you don’t demo with the UI.
-
-Keep:
-- `ad.py`, `af_clingo.py`, `nl2apx.py`, `unified_core.py`, `run_unified.py`, `server.py`, `frontend/`,
-- and a small curated set of `as_arguments_*.txt` examples.
-
----
-
-## 9) One‑liners you’ll reuse
+## 8) One‑liners you’ll reuse
 
 ```bash
 # CLI — unified Markdown + JSON
@@ -208,7 +186,7 @@ curl -sS localhost:8000/api/unified \
 
 ---
 
-## 10) Roadmap ideas
+## 9) Roadmap ideas
 
 - CF2 / SCC‑recursive semantics (odd cycles).
 - Edge weights + “most stable” stance selection.
