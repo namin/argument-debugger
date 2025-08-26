@@ -382,7 +382,6 @@ def make_ad_markdown(ids: List[str], id2text: Dict[str,str], id2atom: Dict[str,s
             lines.append("")
             lines.append("**Repair commentary (excerpt)**")
             comm = (rep["commentary"] or "").strip()
-            if len(comm) > 600: comm = comm[:600] + "…"
             lines.append(comm)
         lines.append("")
     return "\n".join(lines)
