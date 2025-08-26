@@ -2,7 +2,7 @@
 
 This tutorial documents the **unified** pipeline that powers both the CLI and the web app:
 a **single AF** is extracted once from your text and then reused for
-semantics **and** for **ad.py** (issue-finder/repair) on the winning sets.
+semantics ([cheatsheet](ARGUMENTATION_SEMANTICS.md)) **and** for **ad.py** (issue-finder/repair) on the winning sets.
 
 > **Modules at a glance**
 >
