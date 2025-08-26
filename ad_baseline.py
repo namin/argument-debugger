@@ -71,7 +71,7 @@ def main():
     
     # Set up argument parser (compatible with ad.py)
     parser = argparse.ArgumentParser(description='Baseline Argument Debugger: Single-shot logical analysis')
-    parser.add_argument('file', nargs='?', default='examples.txt', 
+    parser.add_argument('file', nargs='?', default='examples/examples.txt', 
                        help='Input file containing arguments (default: examples.txt)')
     parser.add_argument('--debug', action='store_true', 
                        help='Show debug output')

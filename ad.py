@@ -753,8 +753,8 @@ def main():
     
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Argument Debugger: Analyze and repair logical arguments')
-    parser.add_argument('file', nargs='?', default='examples.txt', 
-                       help='Input file containing arguments (default: examples.txt)')
+    parser.add_argument('file', nargs='?', default='examples/examples.txt', 
+                       help='Input file containing arguments (default: examples/examples.txt)')
     parser.add_argument('--debug', action='store_true', 
                        help='Show ASP programs and debug output')
     parser.add_argument('--no-repairs', action='store_true',

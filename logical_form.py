@@ -633,8 +633,8 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Logical Form Analyzer')
-    parser.add_argument('file', nargs='?', default='examples_logical_form.txt',
-                       help='Input file containing arguments (default: examples_logical_form.txt)')
+    parser.add_argument('file', nargs='?', default='examples/examples_logical_form.txt',
+                       help='Input file containing arguments (default: examples/examples_logical_form.txt)')
     parser.add_argument('--lean', action='store_true', help='Verify with Lean')
     parser.add_argument('--debug', action='store_true', help='Show ASP program and debug output')
     parser.add_argument('--example', type=int, help='Run a specific example (1-based index)')

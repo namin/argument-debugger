@@ -481,8 +481,8 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Debate Frontier Analyzer')
-    parser.add_argument('file', nargs='?', default='examples_debate.txt',
-                       help='Input file containing debate text (default: examples_debate.txt)')
+    parser.add_argument('file', nargs='?', default='examples/examples_debate.txt',
+                       help='Input file containing debate text (default: examples/examples_debate.txt)')
     parser.add_argument('--export', choices=['argdown', 'json'], 
                        help='Export format')
     parser.add_argument('--no-frontiers', action='store_true',
