@@ -173,7 +173,7 @@ The UI calls just one endpoint: `POST /api/unified`.
 
 ```bash
 # CLI — unified Markdown + JSON
-python run_unified.py as_arguments_messy.txt \
+python run_unified.py examples/as_arguments_messy.txt \
   --relation auto --winners stable --repair --target A1 \
   --md-out report.md --json-out result.json
 

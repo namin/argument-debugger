@@ -22,7 +22,7 @@ python ad.py
 
 You can run with a custom file of examples, each separated by two newlines.
 ```bash
-python ad.py examples.txt
+python ad.py examples/examples.txt
 ```
 
 See [sample output](output.md).
