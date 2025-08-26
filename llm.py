@@ -5,10 +5,10 @@ llm.py — Centralized LLM client initialization for Gemini/Vertex AI
 This module provides a unified interface for creating LLM clients across the codebase.
 Supports both direct Gemini API access and Vertex AI access.
 
-API Key Resolution (in order of priority):
-  1. Request-scoped API key (when used in server context via contextvars)
-  2. Environment variables: GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT
-  3. Explicit parameter (for standalone/CLI usage)
+API Key Resolution (starting with top priority):
+  1. Explicit parameter (for standalone/CLI usage)
+  2. Request-scoped API key (when used in server context via contextvars)
+  3. Environment variables: GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT
 
 Usage:
   from llm import init_llm_client, get_llm_client_or_none, set_request_api_key
