@@ -32,6 +32,45 @@ body {
   min-height: 0;
 }
 
+/* Mobile responsive layout */
+@media (max-width: 768px) {
+  .workspace.two-col {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    height: auto;
+    min-height: calc(100vh - 72px); /* Account for header and padding */
+  }
+  
+  .left-col {
+    min-height: auto;
+  }
+  
+  .right-col {
+    min-height: 300px; /* Ensure output area has reasonable height */
+  }
+  
+  .toolbar {
+    gap: 8px; /* Reduce gap on mobile */
+    font-size: 13px; /* Slightly smaller font */
+  }
+  
+  .toolbar label {
+    flex-shrink: 0; /* Prevent labels from shrinking too much */
+  }
+  
+  .toolbar button {
+    margin-top: 4px; /* Add some spacing when button wraps */
+  }
+  
+  .main {
+    padding: 8px; /* Reduce padding on mobile */
+  }
+  
+  .editor {
+    font-size: 16px; /* Prevent zoom on iOS */
+  }
+}
+
 .left-col, .right-col { display: flex; flex-direction: column; min-height: 0; }
 
 .toolbar {
