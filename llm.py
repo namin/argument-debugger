@@ -10,6 +10,8 @@ API Key Resolution (starting with top priority):
   2. Request-scoped API key (when used in server context via contextvars)
   3. Environment variables: GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT
 
+If any Gemini API key is provided, it takes precedence over any Google Cloud project set.
+
 Usage:
   from llm import init_llm_client, get_llm_client_or_none, set_request_api_key
   
