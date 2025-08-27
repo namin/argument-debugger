@@ -99,9 +99,7 @@ class Issue:
     description: str
     involved_claims: List[str]
 
-from llm import init_llm_client, get_llm_model
-
-llm_model = get_llm_model()
+from llm import init_llm_client, generate_content
 
 class ArgumentParser:
     """Uses language model to parse natural language arguments into formal structure"""
@@ -176,8 +174,8 @@ class ArgumentParser:
         - Mark claims as equivalent ONLY if they make essentially the same assertion
         """
         
-        response = self.client.models.generate_content(
-            model=llm_model,
+        response = generate_content(
+            self.client,
             contents=prompt,
             config=self.config
         )
@@ -604,8 +602,8 @@ Add text to this argument to address these issues:
 Write additional statements that resolve the issues. Be concise and direct.
 """
         
-        response = self.client.models.generate_content(
-            model=llm_model,
+        response = generate_content(
+            self.client,
             contents=prompt,
             config=self.config
         )
@@ -653,8 +651,8 @@ Do not include any headers, explanations, or formatting.
 Each statement should be a complete sentence.
 """
         
-        response = self.client.models.generate_content(
-            model=llm_model,
+        response = generate_content(
+            self.client,
             contents=prompt,
             config=self.config
         )

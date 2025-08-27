@@ -72,7 +72,6 @@ class Debate:
 # LLM CONFIGURATION
 # ============================================================================
 
-llm_model = "gemini-2.0-flash-exp"
 llm_config = types.GenerateContentConfig(
     temperature=0.1,
     response_mime_type="application/json",
@@ -110,7 +109,6 @@ class DebateParser:
         """
         
         response = self.client.models.generate_content(
-            model=llm_model,
             contents=prompt,
             config=llm_config
         )

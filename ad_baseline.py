@@ -3,7 +3,7 @@
 Baseline single-shot argument debugger for comparison with multi-step approach
 """
 
-from llm import init_llm_client
+from llm import init_llm_client, generate_content
 from pydantic import BaseModel, Field
 from typing import List, Dict
 from google.genai import types
@@ -53,7 +53,8 @@ Return a structured list of issues found."""
         response_schema=IssueDetectionResult
     )
     
-    response = client.models.generate_content(
+    response = generate_content(
+        client,
         model="gemini-2.5-flash",
         contents=prompt,
         config=config

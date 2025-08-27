@@ -9,7 +9,7 @@ Logical Form Analyzer
 import clingo
 from logical_form_core import lf_to_core
 from lean_bridge import Subgoal, verify_with_lean, verify_ui_with_lean, verify_mt_with_lean, verify_all_chain_with_lean
-from llm import init_llm_client
+from llm import init_llm_client, generate_content
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Literal, Union
 from google.genai import types
@@ -175,8 +175,8 @@ class LogicalAnalyzer:
             response_mime_type="application/json"
         )
         
-        response = self.client.models.generate_content(
-            model="gemini-2.0-flash-exp",
+        response = generate_content(
+            self.client,
             contents=prompt,
             config=config
         )

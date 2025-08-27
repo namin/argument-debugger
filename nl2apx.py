@@ -34,9 +34,8 @@ from typing import Dict, List, Set, Tuple, Optional
 # ---------------------------
 # LLM client and Pydantic imports
 # ---------------------------
-from llm import init_llm_client, is_llm_available, get_llm_model
+from llm import init_llm_client, generate_content
 
-_HAVE_LLM = is_llm_available()
 _HAVE_PYDANTIC = False
 try:
     from pydantic import BaseModel, Field
@@ -53,8 +52,6 @@ try:
     from google.genai import types
 except ImportError:
     types = None
-
-LLM_MODEL = get_llm_model()
 
 # ---------------------------
 # Parsing utilities
@@ -199,8 +196,8 @@ ITEMS:
                     thinking_config=types.ThinkingConfig(thinking_budget=0),
                     response_mime_type="application/json"
                 )
-            resp = self.client.models.generate_content(
-                model=LLM_MODEL,
+            resp = generate_content(
+                self.client,
                 contents=prompt,
                 config=cfg
             )

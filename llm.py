@@ -13,7 +13,7 @@ API Key Resolution (starting with top priority):
 If any Gemini API key is provided, it takes precedence over any Google Cloud project set.
 
 Usage:
-  from llm import init_llm_client, get_llm_client_or_none, set_request_api_key
+  from llm import init_llm_client, get_llm_client_or_none, set_request_api_key, generate_content
   
   # Server context - set request-scoped key
   set_request_api_key("user-provided-key")
@@ -24,10 +24,28 @@ Usage:
   
   # Explicit override (works in any context)
   client = init_llm_client(api_key="explicit-key")
+
+  # API calls (cached if CACHE_LLM is set)
+  response = generate_content(client, model="gemini-2.5-flash", contents=prompt, config=config)
 """
 import os
-from typing import Optional
+import hashlib
+import json
+from typing import Optional, Union, Any
 from contextvars import ContextVar
+
+# Add caching imports
+CACHE_LLM = os.getenv("CACHE_LLM") is not None
+if CACHE_LLM:
+    try:
+        from joblib import Memory
+        _HAVE_JOBLIB = True
+    except ImportError:
+        _HAVE_JOBLIB = False
+        Memory = None
+else:
+    _HAVE_JOBLIB = False
+    Memory = None
 
 # Custom exceptions
 class LLMConfigurationError(Exception):
@@ -51,6 +69,14 @@ LLM_MODEL = "gemini-2.5-flash"
 
 # Request-scoped API key storage (for server context)
 _request_api_key: ContextVar[Optional[str]] = ContextVar('request_api_key', default=None)
+
+# Cache configuration
+_CACHE_DIR = os.path.expanduser(os.getenv("LLM_CACHE_DIR", ".cache/llm"))
+
+# Initialize cache if available
+_memory = None
+if _HAVE_JOBLIB and CACHE_LLM:
+    _memory = Memory(_CACHE_DIR, verbose=0)
 
 
 def set_request_api_key(api_key: Optional[str]) -> None:
@@ -127,11 +153,43 @@ def get_llm_client_or_none(api_key: Optional[str] = None,
     return init_llm_client(api_key=api_key, project=project, location=location, required=False)
 
 
-def is_llm_available() -> bool:
-    """Check if LLM dependencies are available."""
-    return _HAVE_GENAI
+def generate_content(client, contents: Union[str, list], config=None, model: str = LLM_MODEL):
+    """
+    Cached wrapper for client.models.generate_content calls.
+    By design, the cache is over the contents and config only, not the model.
+    
+    Args:
+        client: The genai.Client instance
+        contents: Prompt text or list of content parts
+        config: Optional GenerateContentConfig
+        model: Model name (e.g., "gemini-2.5-flash")
+        
+    Returns:
+        Response object with .text attribute
+    """
+    if _memory is None:
+        # No caching - direct call
+        return client.models.generate_content(
+            model=model,
+            contents=contents,
+            config=config
+        )
+    
+    @_memory.cache
+    def _cached_call(contents: str, config: str):
+        response = client.models.generate_content(
+            model=model,
+            contents=contents,
+            config=config
+        )
+        return response.text
+    
+    cached_text = _cached_call(contents, config)
+    
+    # Return response-like object
+    class Response:
+        def __init__(self, text):
+            self.text = text
+    
+    return Response(cached_text)
 
-
-def get_llm_model() -> str:
-    """Get the default LLM model name."""
-    return LLM_MODEL
