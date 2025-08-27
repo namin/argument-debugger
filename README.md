@@ -10,6 +10,7 @@ _an LLM+ASP system for analyzing and repairing arguments_
 
 ```bash
 pip install clingo google-genai
+pip install joblib # optional: for caching
 ```
 
 ## Run
