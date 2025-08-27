@@ -137,7 +137,7 @@ def init_llm_client(api_key: Optional[str] = None,
         return None
     
     if required:
-        raise LLMConfigurationError("Gemini configuration required. Set GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT environment variables, or provide an API key via the frontend.")
+        raise LLMConfigurationError("Gemini configuration required, e.g. set GEMINI_API_KEY. Get free key at https://aistudio.google.com/app/apikey.")
     return None
 
 

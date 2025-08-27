@@ -20,6 +20,17 @@ body {
 }
 .brand { font-weight: 600; }
 .spacer { flex: 1; }
+.header-api-key {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 13px;
+  width: 200px;
+  background: #fff;
+}
+.header-api-key::placeholder {
+  color: var(--muted);
+}
 .link { color: var(--accent); text-decoration: none; }
 
 .main { flex: 1; min-height: 0; padding: 12px; }
@@ -68,6 +79,11 @@ body {
   
   .editor {
     font-size: 16px; /* Prevent zoom on iOS */
+  }
+  
+  .header-api-key {
+    width: 140px; /* Smaller width on mobile */
+    font-size: 12px;
   }
 }
 

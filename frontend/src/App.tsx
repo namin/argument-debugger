@@ -17,6 +17,7 @@ export default function App() {
   const [winners, setWinners] = useState<"preferred"|"stable"|"grounded"|"complete"|"stage"|"semi-stable">("stable");
   const [repair, setRepair] = useState(false);
   const [target, setTarget] = useState<string>("");
+  const [apiKey, setApiKey] = useState<string>("");
 
   const [resp, setResp] = useState<UnifiedResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -25,23 +26,54 @@ export default function App() {
   useEffect(()=>{
     const saved = localStorage.getItem("argdebugger:text");
     if (saved) setText(saved);
+    const savedApiKey = localStorage.getItem("argdebugger:apikey");
+    if (savedApiKey) setApiKey(savedApiKey);
   }, []);
   useEffect(()=>{
     localStorage.setItem("argdebugger:text", text || "");
   }, [text]);
+  useEffect(()=>{
+    localStorage.setItem("argdebugger:apikey", apiKey || "");
+  }, [apiKey]);
 
   async function run() {
     setLoading(true); setError(null);
     try {
+      const headers: Record<string, string> = {"Content-Type":"application/json"};
+      if (apiKey.trim()) {
+        headers["X-API-Key"] = apiKey.trim();
+      }
       const r = await fetch("/api/unified", {
         method: "POST",
-        headers: {"Content-Type":"application/json"},
+        headers,
         body: JSON.stringify({
           text, relation, use_llm: useLLM,
-          winners, repair, target: target || null
+          winners, repair, target: target || null,
+          api_key: apiKey.trim() || null
         })
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (!r.ok) {
+        let errorMessage = `HTTP ${r.status}`;
+        
+        // Enhanced error message for 400 errors
+        if (r.status === 400) {
+          try {
+            const errorData = await r.json();
+            errorMessage = errorData.detail || errorMessage;
+          } catch {
+            // If we can't parse the error response, use default
+          }
+          
+          // Add API key suggestion for 400 errors when using LLM features
+          if (useLLM && !apiKey.trim()) {
+            errorMessage += " — Try setting your Gemini API key above when using LLM features.";
+          } else if (useLLM) {
+            errorMessage += " — Check your API key if using LLM features.";
+          }
+        }
+        
+        throw new Error(errorMessage);
+      }
       const j = await r.json();
       setResp(j);
     } catch (e:any) {
@@ -59,6 +91,13 @@ export default function App() {
       <header className="appbar">
         <div className="brand">Argument Debugger</div>
         <div className="spacer" />
+        <input 
+          type="password" 
+          value={apiKey} 
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder="Gemini API Key"
+          className="header-api-key"
+        />
         <a className="link" href="https://github.com/namin/argument-debugger" target="_blank" rel="noreferrer">
         <img 
             src="/github-mark.png" 
