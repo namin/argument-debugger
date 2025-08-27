@@ -10,6 +10,7 @@ _an LLM+ASP system for analyzing and repairing arguments_
 
 ```bash
 pip install clingo google-genai
+pip install joblib # optional: for caching
 ```
 
 ## Run
@@ -17,6 +18,7 @@ pip install clingo google-genai
 ```bash
 export GEMINI_API_KEY=... # or
 export GOOGLE_CLOUD_PROJECT=...
+export CACHE_LLM=true # optional: to enable caching of LLM calls
 python ad.py
 ```
 
