@@ -68,6 +68,10 @@ class ArgumentStructure(BaseModel):
         default_factory=list,
         description="Claim IDs using slippery slope reasoning"
     )
+    contradictions: List[List[str]] = Field(
+        default_factory=list,
+        description="Pairs of claim IDs that contradict each other"
+    )
     goal_claim: Optional[str] = Field(
         default=None,
         description="The ID of the main conclusion claim"
@@ -162,7 +166,10 @@ class ArgumentParser:
         7. Slippery slopes: Claims that argue one action leads to extreme consequences
            - List of claim IDs using slippery slope reasoning
         
-        8. Goal claim: The main conclusion (if identifiable)
+        8. Contradictions: Pairs of claims that contradict each other
+           - List of claim ID pairs that contradict
+        
+        9. Goal claim: The main conclusion (if identifiable)
         
         CRITICAL INSTRUCTIONS:
         - DO NOT split disjunctions like "Either A or B" into separate A and B claims
@@ -212,6 +219,7 @@ class ArgumentParser:
         arg.empirical_claims = structured_data.empirical_claims
         arg.self_evident_claims = structured_data.self_evident_claims
         arg.slippery_slopes = structured_data.slippery_slopes
+        arg.contradictions = structured_data.contradictions
         
         return arg
 
@@ -305,6 +313,17 @@ class ASPDebugger:
                             description=f"Slippery slope in {claim_id}: argues that one action leads to extreme consequences without justification",
                             involved_claims=[claim_id]
                         ))
+                    
+                    elif atom.name == "contradiction":
+                        claim1 = str(atom.arguments[0]).strip('"')
+                        claim2 = str(atom.arguments[1]).strip('"')
+                        # Only add once (avoid duplicates from both directions)
+                        if claim1 < claim2:
+                            asp_issues.append(Issue(
+                                type="contradiction",
+                                description=f"Claims {claim1} and {claim2} contradict each other",
+                                involved_claims=[claim1, claim2]
+                            ))
                 
                 # Only take first model
                 break
@@ -389,6 +408,18 @@ class ASPDebugger:
                 if self.debug:
                     print(f"Marked {claim_id} as slippery slope")
         
+        # Add contradictions identified by parser
+        if hasattr(argument, 'contradictions') and argument.contradictions:
+            program += "\n% Contradictions identified by parser\n"
+            for pair in argument.contradictions:
+                if len(pair) == 2:
+                    claim1, claim2 = pair
+                    if claim1 in claim_ids and claim2 in claim_ids:
+                        program += f"contradicts({q(claim1)}, {q(claim2)}).\n"
+                        program += f"contradicts({q(claim2)}, {q(claim1)}).\n"
+                    if self.debug:
+                        print(f"Marked {claim1} and {claim2} as contradictory")
+        
         program += """
 % =========================
 % Argument Analysis (ASP)
@@ -402,6 +433,7 @@ class ASPDebugger:
 %   self_evident(ID).        % list from parser
 %   false_dichotomy_claim(ID).
 %   slippery_slope_claim(ID).
+%   contradicts(A, B).       % both directions are generated in Python
 %   % Optional (if you ever choose to emit them from the LLM):
 %   has_citation(ID).
 %   justified_empirically(ID).
@@ -526,6 +558,12 @@ false_dichotomy(C) :- false_dichotomy_claim(C), claim(C, _).
 slippery_slope(C) :- slippery_slope_claim(C), claim(C, _).
 
 % -------------------------
+% Contradictions
+% -------------------------
+% Direct contradictions from parser
+contradiction(A, B) :- contradicts(A, B), claim(A, _), claim(B, _).
+
+% -------------------------
 % Show only issue atoms
 % -------------------------
 #show missing_link/2.
@@ -533,6 +571,7 @@ slippery_slope(C) :- slippery_slope_claim(C), claim(C, _).
 #show circular_reasoning/1.
 #show false_dichotomy/1.
 #show slippery_slope/1.
+#show contradiction/2.
         """
         
         return program
@@ -584,6 +623,13 @@ class RepairGenerator:
                 issue_descriptions.append(f"- Provide evidence for: {claim_content}")
             elif issue.type == "circular":
                 issue_descriptions.append(f"- Break circular reasoning with independent support")
+            elif issue.type == "contradiction":
+                if len(issue.involved_claims) >= 2:
+                    claim1 = issue.involved_claims[0]
+                    claim2 = issue.involved_claims[1]
+                    content1 = self._get_claim_content(argument, claim1)
+                    content2 = self._get_claim_content(argument, claim2)
+                    issue_descriptions.append(f"- Resolve contradiction between: '{content1}' and '{content2}'")
             elif issue.type == "false_dichotomy":
                 claim_id = issue.involved_claims[0]
                 claim_content = self._get_claim_content(argument, claim_id)

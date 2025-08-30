@@ -42,6 +42,7 @@ python test_runner.py tests/test_penguin.txt --update
 
 Tests are named by the issue type they test:
 - `test_circular*.txt` - Circular reasoning tests
+- `test_contradiction*.txt` - Contradiction detection
 - `test_dichotomy*.txt` - False dichotomy detection
 - `test_empirical*.txt` - Empirical claim detection
 - `test_valid*.txt` - Valid arguments (should find no issues)

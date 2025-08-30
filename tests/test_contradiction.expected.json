@@ -1,0 +1,7 @@
+{
+  "must_find": [
+    "contradiction"
+  ],
+  "may_find": [],
+  "must_not_find": []
+}
