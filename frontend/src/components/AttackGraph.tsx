@@ -267,22 +267,44 @@ export const AttackGraph: React.FC<AttackGraphProps> = ({ af, semantics }) => {
   const getAvailableExtensions = (): string[][] => {
     if (!semantics || selectedSemantic === 'none') return [];
     
+    let extensions: string[][] = [];
     switch (selectedSemantic) {
       case 'grounded':
-        return [semantics.grounded];
+        extensions = [semantics.grounded];
+        break;
       case 'preferred':
-        return semantics.preferred;
+        extensions = semantics.preferred;
+        break;
       case 'stable':
-        return semantics.stable;
+        extensions = semantics.stable;
+        break;
       case 'complete':
-        return semantics.complete;
+        extensions = semantics.complete;
+        break;
       case 'stage':
-        return semantics.stage;
+        extensions = semantics.stage;
+        break;
       case 'semi_stable':
-        return semantics.semi_stable;
+        extensions = semantics.semi_stable;
+        break;
       default:
         return [];
     }
+    
+    // Deduplicate extensions by converting to string and back
+    const seen = new Set<string>();
+    const deduplicated: string[][] = [];
+    
+    for (const ext of extensions) {
+      const sorted = [...ext].sort();
+      const key = JSON.stringify(sorted);
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduplicated.push(ext);
+      }
+    }
+    
+    return deduplicated;
   };
 
   const availableExtensions = getAvailableExtensions();
