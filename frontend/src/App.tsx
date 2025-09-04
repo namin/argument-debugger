@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import "./styles.css";
+import { TabContainer } from "./components/TabContainer";
+import { AttackGraph } from "./components/AttackGraph";
 
 type UnifiedResult = {
   markdown: string;
@@ -150,14 +152,31 @@ export default function App() {
             />
           </div>
 
-          {/* Right: Unified Markdown */}
+          {/* Right: Tabbed Interface */}
           <div className="right-col">
-            <div className="card scroll code">
-              {resp?.markdown
-                ? <div style={{whiteSpace:"pre-wrap"}}>{resp.markdown}</div>
-                : <div className="muted">No report yet. Paste arguments and click Analyze.</div>
-              }
-            </div>
+            <TabContainer 
+              defaultTab="report"
+              tabs={[
+                {
+                  id: "report",
+                  label: "Report",
+                  content: (
+                    <div className="card scroll code">
+                      {resp?.markdown
+                        ? <div style={{whiteSpace:"pre-wrap"}}>{resp.markdown}</div>
+                        : <div className="muted">No report yet. Paste arguments and click Analyze.</div>
+                      }
+                    </div>
+                  )
+                },
+                {
+                  id: "attack-graph",
+                  label: "Attack Graph",
+                  content: <AttackGraph af={resp?.af || null} />,
+                  disabled: !resp?.af
+                }
+              ]}
+            />
           </div>
         </div>
       </main>

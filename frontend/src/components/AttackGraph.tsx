@@ -1,0 +1,189 @@
+import React, { useEffect, useRef } from 'react';
+
+interface AttackGraphProps {
+  af: {
+    ids: string[];
+    id2text: Record<string, string>;
+    id_attacks: [string, string][];
+  } | null;
+}
+
+export const AttackGraph: React.FC<AttackGraphProps> = ({ af }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!af || !canvasRef.current || !containerRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Set canvas size to match container
+    const container = containerRef.current;
+    const rect = container.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const { ids, id2text, id_attacks } = af;
+    
+    if (ids.length === 0) {
+      // Draw "No arguments" message
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '14px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText('No arguments to display', canvas.width / 2, canvas.height / 2);
+      return;
+    }
+
+    // Calculate node positions in a circular layout
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = Math.min(canvas.width, canvas.height) * 0.3;
+    const nodePositions: Record<string, { x: number; y: number }> = {};
+    
+    ids.forEach((id, index) => {
+      const angle = (2 * Math.PI * index) / ids.length - Math.PI / 2; // Start from top
+      nodePositions[id] = {
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle)
+      };
+    });
+
+    // Draw attack edges first (so they appear behind nodes)
+    ctx.strokeStyle = '#dc2626';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    
+    id_attacks.forEach(([from, to]) => {
+      const fromPos = nodePositions[from];
+      const toPos = nodePositions[to];
+      if (!fromPos || !toPos) return;
+
+      // Draw line
+      ctx.beginPath();
+      ctx.moveTo(fromPos.x, fromPos.y);
+      ctx.lineTo(toPos.x, toPos.y);
+      ctx.stroke();
+
+      // Draw arrowhead
+      const angle = Math.atan2(toPos.y - fromPos.y, toPos.x - fromPos.x);
+      const arrowLength = 10;
+      const arrowAngle = Math.PI / 6;
+
+      // Calculate arrow position (slightly before the target node)
+      const nodeRadius = 25;
+      const arrowX = toPos.x - nodeRadius * Math.cos(angle);
+      const arrowY = toPos.y - nodeRadius * Math.sin(angle);
+
+      ctx.beginPath();
+      ctx.moveTo(arrowX, arrowY);
+      ctx.lineTo(
+        arrowX - arrowLength * Math.cos(angle - arrowAngle),
+        arrowY - arrowLength * Math.sin(angle - arrowAngle)
+      );
+      ctx.moveTo(arrowX, arrowY);
+      ctx.lineTo(
+        arrowX - arrowLength * Math.cos(angle + arrowAngle),
+        arrowY - arrowLength * Math.sin(angle + arrowAngle)
+      );
+      ctx.stroke();
+    });
+
+    // Draw nodes
+    const nodeRadius = 25;
+    ctx.font = '12px system-ui';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ids.forEach((id) => {
+      const pos = nodePositions[id];
+      if (!pos) return;
+
+      // Draw node circle
+      ctx.fillStyle = '#4f46e5';
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, nodeRadius, 0, 2 * Math.PI);
+      ctx.fill();
+
+      // Draw node border
+      ctx.strokeStyle = '#1e1b4b';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Draw node label
+      ctx.fillStyle = 'white';
+      ctx.fillText(id, pos.x, pos.y);
+    });
+
+    // Draw legend
+    ctx.fillStyle = '#374151';
+    ctx.font = '12px system-ui';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    
+    const legendY = 10;
+    ctx.fillText('Attack Graph:', 10, legendY);
+    
+    // Red arrow for attacks
+    ctx.strokeStyle = '#dc2626';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(10, legendY + 20);
+    ctx.lineTo(40, legendY + 20);
+    ctx.stroke();
+    
+    // Arrow head for legend
+    ctx.beginPath();
+    ctx.moveTo(40, legendY + 20);
+    ctx.lineTo(35, legendY + 17);
+    ctx.moveTo(40, legendY + 20);
+    ctx.lineTo(35, legendY + 23);
+    ctx.stroke();
+    
+    ctx.fillText('attacks', 45, legendY + 16);
+
+  }, [af]);
+
+  // Handle canvas resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (canvasRef.current && containerRef.current) {
+        const container = containerRef.current;
+        const rect = container.getBoundingClientRect();
+        canvasRef.current.width = rect.width;
+        canvasRef.current.height = rect.height;
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  if (!af) {
+    return (
+      <div className="attack-graph-container" ref={containerRef}>
+        <div className="graph-placeholder">
+          <p className="muted">Attack graph will appear here after analysis</p>
+          <p className="muted">Enable "use LLM edges" for complete attack relationships</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="attack-graph-container" ref={containerRef}>
+      <canvas ref={canvasRef} className="attack-graph-canvas" />
+      {af.ids.length > 0 && (
+        <div className="graph-info">
+          <p className="graph-stats">
+            {af.ids.length} argument{af.ids.length !== 1 ? 's' : ''}, {af.id_attacks.length} attack{af.id_attacks.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
