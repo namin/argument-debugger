@@ -1,16 +1,28 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface AttackGraphProps {
   af: {
     ids: string[];
     id2text: Record<string, string>;
+    id2atom: Record<string, string>;
+    atom2id: Record<string, string>;
     id_attacks: [string, string][];
+  } | null;
+  semantics: {
+    grounded: string[];
+    preferred: string[][];
+    stable: string[][];
+    complete: string[][];
+    stage: string[][];
+    semi_stable: string[][];
   } | null;
 }
 
-export const AttackGraph: React.FC<AttackGraphProps> = ({ af }) => {
+export const AttackGraph: React.FC<AttackGraphProps> = ({ af, semantics }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [selectedSemantic, setSelectedSemantic] = useState<string>('none');
+  const [selectedExtension, setSelectedExtension] = useState<number>(0);
 
   useEffect(() => {
     if (!af || !canvasRef.current || !containerRef.current) return;
@@ -28,7 +40,7 @@ export const AttackGraph: React.FC<AttackGraphProps> = ({ af }) => {
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const { ids, id2text, id_attacks } = af;
+    const { ids, id2text, id_attacks, id2atom, atom2id } = af;
     
     if (ids.length === 0) {
       // Draw "No arguments" message
@@ -52,6 +64,46 @@ export const AttackGraph: React.FC<AttackGraphProps> = ({ af }) => {
         y: centerY + radius * Math.sin(angle)
       };
     });
+
+    // Determine which nodes are in the selected extension
+    const getWinningIds = (): Set<string> => {
+      if (!semantics || selectedSemantic === 'none') return new Set();
+      
+      let extensions: string[][] = [];
+      switch (selectedSemantic) {
+        case 'grounded':
+          extensions = [semantics.grounded];
+          break;
+        case 'preferred':
+          extensions = semantics.preferred;
+          break;
+        case 'stable':
+          extensions = semantics.stable;
+          break;
+        case 'complete':
+          extensions = semantics.complete;
+          break;
+        case 'stage':
+          extensions = semantics.stage;
+          break;
+        case 'semi_stable':
+          extensions = semantics.semi_stable;
+          break;
+        default:
+          return new Set();
+      }
+      
+      if (extensions.length === 0) return new Set();
+      
+      // Use the selected extension index, or 0 if out of bounds
+      const extensionIndex = Math.min(selectedExtension, extensions.length - 1);
+      const atomsInExtension = extensions[extensionIndex] || [];
+      
+      // Convert atoms back to IDs
+      return new Set(atomsInExtension.map(atom => atom2id[atom]).filter(Boolean));
+    };
+
+    const winningIds = getWinningIds();
 
     // Draw attack edges first (so they appear behind nodes)
     ctx.strokeStyle = '#dc2626';
@@ -103,14 +155,23 @@ export const AttackGraph: React.FC<AttackGraphProps> = ({ af }) => {
       const pos = nodePositions[id];
       if (!pos) return;
 
-      // Draw node circle
-      ctx.fillStyle = '#4f46e5';
+      const isWinning = winningIds.has(id);
+
+      // Draw node circle with semantic coloring
+      if (isWinning) {
+        ctx.fillStyle = '#10b981'; // Green for winning arguments
+      } else if (selectedSemantic !== 'none') {
+        ctx.fillStyle = '#ef4444'; // Red for losing arguments when semantics are active
+      } else {
+        ctx.fillStyle = '#4f46e5'; // Default blue
+      }
+      
       ctx.beginPath();
       ctx.arc(pos.x, pos.y, nodeRadius, 0, 2 * Math.PI);
       ctx.fill();
 
       // Draw node border
-      ctx.strokeStyle = '#1e1b4b';
+      ctx.strokeStyle = isWinning ? '#065f46' : (selectedSemantic !== 'none' ? '#7f1d1d' : '#1e1b4b');
       ctx.lineWidth = 2;
       ctx.stroke();
 
@@ -125,28 +186,56 @@ export const AttackGraph: React.FC<AttackGraphProps> = ({ af }) => {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     
-    const legendY = 10;
-    ctx.fillText('Attack Graph:', 10, legendY);
+    let legendY = 10;
+    ctx.fillText('Legend:', 10, legendY);
+    legendY += 20;
     
     // Red arrow for attacks
     ctx.strokeStyle = '#dc2626';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(10, legendY + 20);
-    ctx.lineTo(40, legendY + 20);
+    ctx.moveTo(10, legendY);
+    ctx.lineTo(40, legendY);
     ctx.stroke();
     
     // Arrow head for legend
     ctx.beginPath();
-    ctx.moveTo(40, legendY + 20);
-    ctx.lineTo(35, legendY + 17);
-    ctx.moveTo(40, legendY + 20);
-    ctx.lineTo(35, legendY + 23);
+    ctx.moveTo(40, legendY);
+    ctx.lineTo(35, legendY - 3);
+    ctx.moveTo(40, legendY);
+    ctx.lineTo(35, legendY + 3);
     ctx.stroke();
     
-    ctx.fillText('attacks', 45, legendY + 16);
+    ctx.fillText('attacks', 45, legendY - 4);
+    legendY += 20;
 
-  }, [af]);
+    // Semantic legend if active
+    if (selectedSemantic !== 'none') {
+      // Green circle for winning
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath();
+      ctx.arc(20, legendY, 8, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.strokeStyle = '#065f46';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = '#374151';
+      ctx.fillText('winning', 35, legendY - 4);
+      legendY += 18;
+
+      // Red circle for losing
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(20, legendY, 8, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.strokeStyle = '#7f1d1d';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = '#374151';
+      ctx.fillText('losing', 35, legendY - 4);
+    }
+
+  }, [af, semantics, selectedSemantic, selectedExtension]);
 
   // Handle canvas resize
   useEffect(() => {
@@ -174,13 +263,84 @@ export const AttackGraph: React.FC<AttackGraphProps> = ({ af }) => {
     );
   }
 
+  // Get available extensions for the selected semantic
+  const getAvailableExtensions = (): string[][] => {
+    if (!semantics || selectedSemantic === 'none') return [];
+    
+    switch (selectedSemantic) {
+      case 'grounded':
+        return [semantics.grounded];
+      case 'preferred':
+        return semantics.preferred;
+      case 'stable':
+        return semantics.stable;
+      case 'complete':
+        return semantics.complete;
+      case 'stage':
+        return semantics.stage;
+      case 'semi_stable':
+        return semantics.semi_stable;
+      default:
+        return [];
+    }
+  };
+
+  const availableExtensions = getAvailableExtensions();
+
   return (
     <div className="attack-graph-container" ref={containerRef}>
+      {/* Semantic Controls */}
+      {semantics && (
+        <div className="graph-controls">
+          <label>
+            Semantic:
+            <select 
+              value={selectedSemantic} 
+              onChange={(e) => {
+                setSelectedSemantic(e.target.value);
+                setSelectedExtension(0);
+              }}
+            >
+              <option value="none">None (show all)</option>
+              <option value="grounded">Grounded</option>
+              <option value="preferred">Preferred</option>
+              <option value="stable">Stable</option>
+              <option value="complete">Complete</option>
+              <option value="stage">Stage</option>
+              <option value="semi_stable">Semi-stable</option>
+            </select>
+          </label>
+          
+          {availableExtensions.length > 1 && (
+            <label>
+              Extension:
+              <select 
+                value={selectedExtension} 
+                onChange={(e) => setSelectedExtension(parseInt(e.target.value))}
+              >
+                {availableExtensions.map((_, index) => (
+                  <option key={index} value={index}>
+                    {index + 1} of {availableExtensions.length}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
+      
       <canvas ref={canvasRef} className="attack-graph-canvas" />
+      
       {af.ids.length > 0 && (
         <div className="graph-info">
           <p className="graph-stats">
             {af.ids.length} argument{af.ids.length !== 1 ? 's' : ''}, {af.id_attacks.length} attack{af.id_attacks.length !== 1 ? 's' : ''}
+            {selectedSemantic !== 'none' && availableExtensions.length > 0 && (
+              <span className="semantic-info">
+                {' • '}
+                {selectedSemantic}: {availableExtensions[selectedExtension]?.length || 0} winning
+              </span>
+            )}
           </p>
         </div>
       )}

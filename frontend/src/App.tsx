@@ -172,7 +172,7 @@ export default function App() {
                 {
                   id: "attack-graph",
                   label: "Attack Graph",
-                  content: <AttackGraph af={resp?.af || null} />,
+                  content: <AttackGraph af={resp?.af || null} semantics={resp?.semantics || null} />,
                   disabled: !resp?.af
                 }
               ]}

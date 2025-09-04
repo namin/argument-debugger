@@ -113,6 +113,27 @@ body {
     right: 5px;
     padding: 3px 6px;
   }
+  
+  .graph-controls {
+    top: 5px;
+    right: 5px;
+    padding: 6px 8px;
+    font-size: 12px;
+    gap: 8px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .graph-controls label {
+    flex-direction: column;
+    gap: 3px;
+    align-items: flex-start;
+  }
+  
+  .graph-controls select {
+    width: 100%;
+    font-size: 11px;
+  }
 }
 
 .left-col, .right-col { display: flex; flex-direction: column; min-height: 0; }
@@ -235,4 +256,43 @@ body {
 
 .graph-stats {
   margin: 0;
+}
+
+/* Graph Controls */
+.graph-controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.graph-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.graph-controls select {
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 12px;
+  background: white;
+  color: var(--fg);
+}
+
+.semantic-info {
+  color: var(--muted);
+  font-weight: normal;
 }
