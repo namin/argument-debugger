@@ -1,282 +1,683 @@
 {
   "_meta": {
-    "version": "1.0.0",
+    "version": "1.1.0",
     "updated": "2025-09-07",
-    "notes": "Walton-style schemes with concise CQ labels + hints. CQ ids are globally consistent across schemes."
+    "notes": "Walton-style schemes with expanded CQ labels and guidance fields to improve diagnostics."
   },
   "practical_reasoning": {
     "name": "Argument from Practical Reasoning",
-    "description": "From problem/goal to proposed action.",
+    "description": "From a problem/goal to a recommended action or policy (Should we do A to achieve G?).",
     "critical_questions": [
       {
         "id": "achieves",
-        "label": "Effectiveness",
-        "hint": "Show evidence the action leads to the goal (A → G)."
+        "label": "Effectiveness — does A plausibly achieve G?",
+        "hint": "State the pathway A→G and cite evidence that A moves the key metric(s) in the desired direction.",
+        "why_it_matters": "Policies should be selected for expected impact on the stated goal, not just intent.",
+        "how_to_answer": [
+          "Summarize the mechanism/pathway from A to outcome G.",
+          "Cite empirical results (evaluations, trials, natural experiments) or credible modeling.",
+          "Quantify expected effect size where possible (with uncertainty)."
+        ],
+        "evidence_types": [
+          "Program evaluations",
+          "RCTs/Quasi-experiments",
+          "Meta-analyses",
+          "Administrative data",
+          "Credible modeling studies"
+        ],
+        "answer_templates": [
+          "CQ: achieves — In setting S, implementing A reduced outcome Y by ~X% (95% CI …), suggesting progress toward goal G.",
+          "CQ: achieves — Mechanism: A → (intermediate M) → G; evidence from [source] shows M increases by … under A."
+        ],
+        "pitfalls": [
+          "Describing intent instead of effect",
+          "Appealing only to authority without outcome data"
+        ]
       },
       {
         "id": "alternatives",
-        "label": "Alternatives",
-        "hint": "Compare plausible options; justify why this one is best."
+        "label": "Alternatives — is A better than plausible options?",
+        "hint": "Name viable alternatives and justify why A is preferable given constraints (cost, time, equity).",
+        "why_it_matters": "Decision quality depends on comparative, not absolute, reasoning.",
+        "how_to_answer": [
+          "List 2–3 realistic alternatives (B, C).",
+          "Compare A vs. {B,C} on key criteria (impact, cost, speed, risks).",
+          "Explain why A dominates or is the best feasible compromise."
+        ],
+        "evidence_types": [
+          "Comparative evaluations",
+          "Cost-effectiveness analyses",
+          "Opportunity cost estimates"
+        ],
+        "answer_templates": [
+          "CQ: alternatives — Compared with {B,C}, A delivers similar impact at ~40% lower cost per unit.",
+          "CQ: alternatives — Under budget K and timeline T, A is the only option meeting threshold θ."
+        ],
+        "pitfalls": [
+          "Straw-manning alternatives",
+          "Ignoring feasibility constraints"
+        ]
       },
       {
         "id": "side_effects",
-        "label": "Side effects",
-        "hint": "Acknowledge costs/harms and how they’re mitigated."
+        "label": "Side effects — what costs/harms accompany A, and how are they mitigated?",
+        "hint": "Identify foreseeable negative effects and the mitigation plan with residual risk.",
+        "why_it_matters": "Unaddressed harms can outweigh benefits or create new problems.",
+        "how_to_answer": [
+          "List major risks/costs and affected groups.",
+          "Describe mitigations M and anticipated residual risk after M.",
+          "Explain monitoring for unintended consequences."
+        ],
+        "evidence_types": [
+          "Risk assessments",
+          "Historical case studies",
+          "Equity impact analyses"
+        ],
+        "answer_templates": [
+          "CQ: side_effects — Risks R1/R2 for group Z; mitigated by M1/M2; residual risk estimated at …",
+          "CQ: side_effects — Cost increase of ~X% offset by savings in Y within T months."
+        ],
+        "pitfalls": [
+          "Hand-waving away costs",
+          "Failing to name an owner for mitigation"
+        ]
       },
       {
         "id": "conflicts",
-        "label": "Goal conflicts",
-        "hint": "Show the action doesn't undermine other important goals."
+        "label": "Goal conflicts — does A undermine other important goals or constraints?",
+        "hint": "Show alignment with adjacent goals/constraints, or justify a tradeoff and why it is acceptable.",
+        "why_it_matters": "Policies interact; gains on G may erode G2/G3 unless acknowledged and balanced.",
+        "how_to_answer": [
+          "List relevant adjacent goals/constraints (budget, legal, equity).",
+          "Show A’s net alignment or justify the tradeoff with decision criteria.",
+          "If conflicts exist, specify compensating measures or thresholds."
+        ],
+        "evidence_types": [
+          "Budget/legal analyses",
+          "Multi-criteria decision analyses",
+          "Stakeholder commitments"
+        ],
+        "answer_templates": [
+          "CQ: conflicts — A respects constraints {C1,C2}; conflict with G2 mitigated via M, leaving net benefit positive.",
+          "CQ: conflicts — Tradeoff accepted per criterion θ; oversight by body B with metric M."
+        ],
+        "pitfalls": [
+          "Ignoring statutory or budget constraints",
+          "Vague ‘we’ll manage it’ assurances"
+        ]
       },
       {
         "id": "preconditions",
-        "label": "Feasibility",
-        "hint": "Establish resources, authority, capacity, and timing."
+        "label": "Feasibility — are resources, authority, capacity, and timing in place?",
+        "hint": "Show that the practical preconditions to deploy A are satisfied or will be by start time.",
+        "why_it_matters": "A great idea without capability fails in execution.",
+        "how_to_answer": [
+          "Confirm budget, staffing, legal authority, data systems, and timeline.",
+          "Name accountable owners and readiness milestones.",
+          "Identify bottlenecks and how they are cleared."
+        ],
+        "evidence_types": [
+          "Implementation plans",
+          "MOUs/authorizations",
+          "Hiring/procurement timelines"
+        ],
+        "answer_templates": [
+          "CQ: preconditions — Budget K authorized; vendor V contracted; go‑live in T weeks with U trained staff.",
+          "CQ: preconditions — Authority under statute §…; data-sharing MOU signed with …"
+        ],
+        "pitfalls": [
+          "Assuming capacity exists",
+          "Undefined critical path"
+        ]
       }
     ]
   },
   "argument_from_consequences": {
     "name": "Argument from (Good/Bad) Consequences",
-    "description": "Do/avoid A because of its consequences.",
+    "description": "Recommend/oppose an action because of its expected consequences (A leads to outcomes ±G).",
     "critical_questions": [
       {
         "id": "probability",
-        "label": "Likelihood",
-        "hint": "Estimate how likely the predicted outcome is."
+        "label": "Likelihood — how likely are the predicted outcomes?",
+        "hint": "Characterize uncertainty (ranges, confidence) rather than binary predictions.",
+        "why_it_matters": "Overconfident claims mislead decisions under uncertainty.",
+        "how_to_answer": [
+          "Provide probability ranges or scenario weights with justification.",
+          "State key assumptions and sensitivity to them."
+        ],
+        "evidence_types": [
+          "Forecasts",
+          "Historical frequencies",
+          "Bayesian/ensemble models"
+        ],
+        "answer_templates": [
+          "CQ: probability — P(outcome) ≈ 0.2–0.35 under assumptions S; sensitivity shows range …",
+          "CQ: probability — 3‑scenario forecast: optimistic 10%, base 70%, pessimistic 20%."
+        ],
+        "pitfalls": [
+          "Point estimates without uncertainty",
+          "Ignoring assumption risk"
+        ]
       },
       {
         "id": "severity",
-        "label": "Severity",
-        "hint": "Explain how important/serious the outcome would be."
+        "label": "Severity — how important/serious are the outcomes?",
+        "hint": "Quantify stakes with relevant metrics (health, cost, equity, environment).",
+        "why_it_matters": "Low‑probability but severe outcomes may dominate decisions.",
+        "how_to_answer": [
+          "Select decision‑relevant metrics and quantify magnitude.",
+          "Compare to thresholds (budget, safety, legal)."
+        ],
+        "evidence_types": [
+          "Impact assessments",
+          "Cost-of-illness/benefit studies",
+          "Equity analyses"
+        ],
+        "answer_templates": [
+          "CQ: severity — Expected loss ~$X–Y; exceeds threshold θ; justifies preventive A.",
+          "CQ: severity — Outcome affects group Z disproportionately; mitigation M included."
+        ],
+        "pitfalls": [
+          "Qualitative adjectives without numbers",
+          "Cherry-picked metrics"
+        ]
       },
       {
         "id": "countervailing",
-        "label": "Countervailing",
-        "hint": "Address opposing consequences and tradeoffs."
+        "label": "Countervailing effects — what offsetting consequences exist?",
+        "hint": "Identify effects that undermine the predicted benefit/harm and net them out.",
+        "why_it_matters": "Net impact depends on both intended and opposing effects.",
+        "how_to_answer": [
+          "List opposing pathways and estimate their sizes.",
+          "Explain why the net remains favorable (or not)."
+        ],
+        "evidence_types": [
+          "General equilibrium or system models",
+          "Before/after analyses"
+        ],
+        "answer_templates": [
+          "CQ: countervailing — Benefit B reduced by displacement D (~X%); net effect remains positive.",
+          "CQ: countervailing — Rebound effect estimated at r; after adjustment, ΔG ≈ …"
+        ],
+        "pitfalls": [
+          "Ignoring rebound/displacement",
+          "Double-counting benefits"
+        ]
       }
     ]
   },
   "rules_to_case": {
     "name": "Apply Rule to Case",
-    "description": "From general rule to specific case.",
+    "description": "Infer a conclusion by applying a general rule to a specific case (If R applies, then C).",
     "critical_questions": [
       {
         "id": "matching",
-        "label": "Rule matching",
-        "hint": "Show the case meets the rule’s stated conditions."
+        "label": "Rule matching — does the case meet R’s stated conditions?",
+        "hint": "Map each condition of the rule to facts of the case; justify borderline items.",
+        "why_it_matters": "Misapplied rules yield unsound conclusions.",
+        "how_to_answer": [
+          "List rule conditions r1..rn; show the corresponding facts f1..fn.",
+          "Explain treatment of any ambiguous/missing conditions."
+        ],
+        "evidence_types": [
+          "Statutes/policies",
+          "Case facts",
+          "Official records"
+        ],
+        "answer_templates": [
+          "CQ: matching — Conditions {r1..rn} satisfied by facts {f1..fn}; therefore R applies.",
+          "CQ: matching — r3 ambiguous; interpreted per guidance §…"
+        ],
+        "pitfalls": [
+          "Asserting ‘the rule applies’ without mapping facts",
+          "Ignoring exceptions"
+        ]
       },
       {
         "id": "exceptions",
-        "label": "Exceptions",
-        "hint": "Address whether any rule-exceptions apply."
+        "label": "Exceptions — do any rule‑exceptions apply?",
+        "hint": "Name possible exceptions and why they are inapplicable or outweighed.",
+        "why_it_matters": "Rules often have codified exceptions; overlooking them weakens the inference.",
+        "how_to_answer": [
+          "List candidate exceptions e1..em and test applicability.",
+          "If applicable, justify override/waiver and authority."
+        ],
+        "evidence_types": [
+          "Rule exception clauses",
+          "Precedents",
+          "Waiver authorities"
+        ],
+        "answer_templates": [
+          "CQ: exceptions — Exceptions {e1,e2} do not apply because …",
+          "CQ: exceptions — e2 applies but is overridden under §…"
+        ],
+        "pitfalls": [
+          "Silence on known exceptions",
+          "Unauthorized overrides"
+        ]
       }
     ]
   },
   "definition": {
     "name": "Definition to Case",
-    "description": "Classify by definition criteria.",
+    "description": "Classify case(s) under a definition with explicit criteria.",
     "critical_questions": [
       {
         "id": "fit",
-        "label": "Definition fit",
-        "hint": "Map the case to each definition criterion."
+        "label": "Definition fit — do case facts satisfy each criterion?",
+        "hint": "Map criteria→facts and address vagueness or borderline status.",
+        "why_it_matters": "Misclassification stems from ignoring criteria or ambiguity.",
+        "how_to_answer": [
+          "List definition criteria d1..dn and corresponding facts.",
+          "Discuss any borderline cases and interpretation principle."
+        ],
+        "evidence_types": [
+          "Standards",
+          "Taxonomies",
+          "Fact records"
+        ],
+        "answer_templates": [
+          "CQ: fit — Criteria {d1..dn} satisfied by facts {f1..fn}.",
+          "CQ: fit — d3 borderline; resolved via principle P."
+        ],
+        "pitfalls": [
+          "Skipping criteria",
+          "Hand‑waving borderline cases"
+        ]
       },
       {
         "id": "adequacy",
-        "label": "Definition adequacy",
-        "hint": "Show the definition is accepted/appropriate here."
+        "label": "Definition adequacy — is this definition accepted/appropriate here?",
+        "hint": "Show this definition is the right one (jurisdiction, discipline, scope).",
+        "why_it_matters": "Competing definitions exist; choice affects outcome.",
+        "how_to_answer": [
+          "Cite authority/consensus for this definition in context.",
+          "Explain why alternatives are inferior for this use case."
+        ],
+        "evidence_types": [
+          "Standards bodies",
+          "Statutes/regulations",
+          "Scholarly consensus"
+        ],
+        "answer_templates": [
+          "CQ: adequacy — Using ISO/§… definition due to …; alternatives {D2} fail criterion θ.",
+          "CQ: adequacy — Domain consensus favors … for scope S."
+        ],
+        "pitfalls": [
+          "Non‑authoritative or cherry‑picked definitions"
+        ]
       },
       {
         "id": "borderline",
-        "label": "Borderline cases",
-        "hint": "Handle vagueness and edge cases explicitly."
+        "label": "Borderline cases — how are gray areas resolved?",
+        "hint": "Identify vagueness, thresholds, and decision rules for close cases.",
+        "why_it_matters": "Decisions often hinge on gray areas; make the rule explicit.",
+        "how_to_answer": [
+          "Define thresholds or tie‑breakers for near‑miss cases.",
+          "Cite precedent or policy for gray‑area resolution."
+        ],
+        "evidence_types": [
+          "Precedents",
+          "Guidance memos",
+          "Calibration protocols"
+        ],
+        "answer_templates": [
+          "CQ: borderline — Threshold τ set per §…; case falls above/below by …",
+          "CQ: borderline — Apply rule R for ties: …"
+        ],
+        "pitfalls": [
+          "Silent thresholds",
+          "Inconsistent handling of edge cases"
+        ]
       }
     ]
   },
   "analogy": {
     "name": "Argument from Analogy",
-    "description": "Transfer judgment from a similar case.",
+    "description": "Infer judgment for target case by similarity to a base case.",
     "critical_questions": [
       {
         "id": "similarities",
-        "label": "Relevant similarities",
-        "hint": "Specify the material similarities that support transfer."
+        "label": "Relevant similarities — what material features match?",
+        "hint": "List the specific features that carry the judgment across.",
+        "why_it_matters": "Only *relevant* similarities support transfer of judgment.",
+        "how_to_answer": [
+          "Enumerate shared, decision‑relevant features F.",
+          "Justify why these features determine the outcome in both cases."
+        ],
+        "evidence_types": [
+          "Feature tables",
+          "Domain theory",
+          "Precedents"
+        ],
+        "answer_templates": [
+          "CQ: similarities — Both cases share features {F} critical to outcome O.",
+          "CQ: similarities — Domain theory T makes F decisive."
+        ],
+        "pitfalls": [
+          "Superficial similarities",
+          "Irrelevant attributes"
+        ]
       },
       {
         "id": "relevant_differences",
-        "label": "Relevant differences",
-        "hint": "Acknowledge disanalogies that weaken transfer."
+        "label": "Relevant differences — what breaks the analogy?",
+        "hint": "Own the disanalogies and explain why they do/do not defeat transfer.",
+        "why_it_matters": "A single decisive difference can void the inference.",
+        "how_to_answer": [
+          "List differences D and assess their decisiveness.",
+          "Explain why transfer still holds or is limited."
+        ],
+        "evidence_types": [
+          "Counter‑examples",
+          "Sensitivity arguments",
+          "Precedents"
+        ],
+        "answer_templates": [
+          "CQ: relevant_differences — Differences {D} are non‑decisive because …",
+          "CQ: relevant_differences — Limits: judgment transfers only for subset S."
+        ],
+        "pitfalls": [
+          "Hiding disanalogies",
+          "Overclaiming generality"
+        ]
       },
       {
         "id": "analogy_base_rate",
-        "label": "Base rate / typicality",
-        "hint": "Show both cases are typical instances, not outliers."
+        "label": "Typicality — are both cases representative, not outliers?",
+        "hint": "Show the base and target cases are typical of the class.",
+        "why_it_matters": "Outliers make analogies fragile.",
+        "how_to_answer": [
+          "Provide base rates or distributional context.",
+          "Show both cases fall within common ranges on key features."
+        ],
+        "evidence_types": [
+          "Descriptive statistics",
+          "Surveys",
+          "Benchmark datasets"
+        ],
+        "answer_templates": [
+          "CQ: typicality — Both cases lie in the interquartile range on features {F}.",
+          "CQ: typicality — Base/target not extreme on dimensions D."
+        ],
+        "pitfalls": [
+          "Cherry‑picked exemplar",
+          "Survivorship bias"
+        ]
       }
     ]
   },
   "cause_to_effect": {
     "name": "Cause to Effect",
-    "description": "From proposed cause to expected effect.",
+    "description": "Argue that a proposed cause will (likely) produce an effect.",
     "critical_questions": [
       {
         "id": "strength",
-        "label": "Causal strength",
-        "hint": "Quantify effect size; cite mechanism/regularity if possible."
+        "label": "Causal strength — how large and consistent is the effect?",
+        "hint": "Provide effect sizes with uncertainty; show consistency across settings.",
+        "why_it_matters": "Magnitude and reliability determine practical import.",
+        "how_to_answer": [
+          "Report effect size(s) with intervals.",
+          "Show consistency (replication, heterogeneity analysis)."
+        ],
+        "evidence_types": [
+          "RCTs/Quasi‑experiments",
+          "Meta‑analyses",
+          "Panel/event studies"
+        ],
+        "answer_templates": [
+          "CQ: strength — ΔY ≈ X% (95% CI …) across 3 studies; low heterogeneity (I²=…).",
+          "CQ: strength — Effect persists after controls and placebo tests."
+        ],
+        "pitfalls": [
+          "No uncertainty",
+          "Single‑study cherry picking"
+        ]
       },
       {
         "id": "mechanism",
-        "label": "Mechanism",
-        "hint": "Explain the process linking cause to effect."
+        "label": "Mechanism — what process links cause to effect?",
+        "hint": "Explain the pathway and intermediate variables; connect to evidence.",
+        "why_it_matters": "Plausible mechanisms increase confidence and guide design.",
+        "how_to_answer": [
+          "Describe the causal chain X→M→Y.",
+          "Provide evidence for each link (measure M, show mediation where possible)."
+        ],
+        "evidence_types": [
+          "Mediation analyses",
+          "Lab/field studies",
+          "Process tracing"
+        ],
+        "answer_templates": [
+          "CQ: mechanism — X raises M (β≈…); M predicts Y; partial mediation observed.",
+          "CQ: mechanism — Operational pathway: inputs→process→outputs→outcomes."
+        ],
+        "pitfalls": [
+          "Vague narratives",
+          "Mechanism contradicts observed timing"
+        ]
       },
       {
         "id": "temporality",
-        "label": "Temporality",
-        "hint": "Cause precedes effect."
+        "label": "Temporality — does cause precede effect?",
+        "hint": "Show time order and rule out reverse causality.",
+        "why_it_matters": "Causation requires correct time order.",
+        "how_to_answer": [
+          "Use lag structures, event timing, or experimental design.",
+          "Show robustness to alternative lags."
+        ],
+        "evidence_types": [
+          "Event studies",
+          "Lag regressions",
+          "Instrumental designs"
+        ],
+        "answer_templates": [
+          "CQ: temporality — Effect emerges after X with lag ℓ; pre‑trends flat.",
+          "CQ: temporality — Granger tests and design timing rule out reverse causality."
+        ],
+        "pitfalls": [
+          "Contemporaneous-only data",
+          "Pretrend violations"
+        ]
       },
       {
         "id": "confounders",
-        "label": "Confounders",
-        "hint": "Control major confounders; provide robustness checks."
+        "label": "Confounders — are common causes controlled?",
+        "hint": "Address major backdoors via design or controls; show robustness.",
+        "why_it_matters": "Uncontrolled confounding can create spurious effects.",
+        "how_to_answer": [
+          "List key confounders and your control/identification strategy.",
+          "Provide robustness/sensitivity checks."
+        ],
+        "evidence_types": [
+          "Design papers",
+          "Sensitivity analyses",
+          "Balance tables"
+        ],
+        "answer_templates": [
+          "CQ: confounders — Controlled {Z}; effect stable across specs; PV bounds show …",
+          "CQ: confounders — IV/DiD identification strategy addresses unobservables."
+        ],
+        "pitfalls": [
+          "Control everything superficially",
+          "No robustness checks"
+        ]
       },
       {
         "id": "interveners",
-        "label": "Interveners",
-        "hint": "Rule out blockers; show required conditions hold."
+        "label": "Interveners — what conditions must hold; what blockers exist?",
+        "hint": "Name enabling conditions and potential blockers; show they hold/do not apply.",
+        "why_it_matters": "Causal effects may be contingent on context.",
+        "how_to_answer": [
+          "List necessary conditions and verify.",
+          "Identify likely blockers and show absence or mitigation."
+        ],
+        "evidence_types": [
+          "Process evaluations",
+          "Context analyses",
+          "Readiness assessments"
+        ],
+        "answer_templates": [
+          "CQ: interveners — Preconditions P hold; blockers B handled via M.",
+          "CQ: interveners — Effect observed only when condition C is met."
+        ],
+        "pitfalls": [
+          "Assuming universality",
+          "Ignoring context"
+        ]
       },
       {
         "id": "robustness",
-        "label": "Robustness",
-        "hint": "Replicate across datasets/methods where possible."
+        "label": "Robustness — do findings replicate across methods/datasets?",
+        "hint": "Provide replications or triangulation.",
+        "why_it_matters": "Replicability guards against fragile results.",
+        "how_to_answer": [
+          "Show similar effects across designs/samples.",
+          "Note where effects differ and why."
+        ],
+        "evidence_types": [
+          "Multi‑study syntheses",
+          "Cross‑validation",
+          "Pre‑registered replications"
+        ],
+        "answer_templates": [
+          "CQ: robustness — Effects consistent across {A,B,C}; deviations explained by …",
+          "CQ: robustness — Triangulation with qualitative/process evidence."
+        ],
+        "pitfalls": [
+          "One‑off results",
+          "No out‑of‑sample validation"
+        ]
       }
     ]
   },
   "correlation_to_causation": {
     "name": "Correlation to Causation",
-    "description": "From observed correlation to causal claim.",
+    "description": "Argue from an observed association to a causal claim (X→Y).",
     "critical_questions": [
       {
         "id": "temporality",
-        "label": "Temporality",
-        "hint": "Show the putative cause comes before the effect."
+        "label": "Temporality — does X precede Y?",
+        "hint": "Establish time order; rule out reverse causality."
       },
       {
         "id": "confounders",
-        "label": "Confounders",
-        "hint": "Rule out plausible common causes (backdoors)."
+        "label": "Confounders — could Z cause both X and Y?",
+        "hint": "Control/balance or design away common causes."
       },
       {
         "id": "mechanism",
-        "label": "Mechanism",
-        "hint": "Give a plausible mechanism linking X to Y."
+        "label": "Mechanism — by what process does X influence Y?",
+        "hint": "Provide a plausible pathway with supporting evidence."
       },
       {
         "id": "robustness",
-        "label": "Robustness",
-        "hint": "Check stability across methods, datasets, model specs."
+        "label": "Robustness — does the association survive checks?",
+        "hint": "Replicate across datasets/specs; sensitivity tests."
       }
     ]
   },
   "expert_opinion": {
     "name": "Expert Opinion",
-    "description": "Rely on an expert’s judgment.",
+    "description": "Rely on the judgment of a qualified expert or panel.",
     "critical_questions": [
       {
         "id": "credibility",
-        "label": "Credibility",
+        "label": "Credibility — is the source genuinely expert?",
         "hint": "Establish expertise, track record, and standing."
       },
       {
         "id": "domain_fit",
-        "label": "Domain fit",
-        "hint": "Show the expert’s domain matches the claim."
+        "label": "Domain fit — does expertise match the claim?",
+        "hint": "Align scope/discipline of expertise with the claim."
       },
       {
         "id": "reliability",
-        "label": "Reliability",
-        "hint": "Demonstrate general accuracy/trustworthiness."
+        "label": "Reliability — how accurate is the source generally?",
+        "hint": "Look for calibration, past accuracy, peer reputation."
       },
       {
         "id": "bias",
-        "label": "Bias",
-        "hint": "Disclose and handle conflicts of interest."
+        "label": "Bias — any conflicts of interest?",
+        "hint": "Disclose interests and explain mitigation."
       },
       {
         "id": "corroboration",
-        "label": "Corroboration",
-        "hint": "Add independent confirming sources."
+        "label": "Corroboration — are there independent confirmations?",
+        "hint": "Cite convergent evidence from other sources."
       }
     ]
   },
   "position_to_know": {
     "name": "Position to Know (Testimony)",
-    "description": "Trust a witness/source with privileged access.",
+    "description": "Trust a witness/source who had privileged access to the facts.",
     "critical_questions": [
       {
         "id": "access",
-        "label": "Access to facts",
-        "hint": "Show the source had the right information."
+        "label": "Access — did the source have the right information?",
+        "hint": "Explain access, proximity, records."
       },
       {
         "id": "reliability",
-        "label": "Reliability",
-        "hint": "Demonstrate general accuracy/truthfulness."
+        "label": "Reliability — is the source generally accurate?",
+        "hint": "Calibration, incentives for honesty, records."
       },
       {
         "id": "bias",
-        "label": "Bias",
-        "hint": "Disclose and handle conflicts of interest."
+        "label": "Bias — could interests distort the statement?",
+        "hint": "Disclose/manage conflicts."
       },
       {
         "id": "corroboration",
-        "label": "Corroboration",
-        "hint": "Provide independent confirming evidence."
+        "label": "Corroboration — do other sources agree?",
+        "hint": "Provide independent confirmations."
       }
     ]
   },
   "example": {
     "name": "Argument from Example",
-    "description": "Generalize from one or more instances.",
+    "description": "Generalize from one or more instances to a broader claim.",
     "critical_questions": [
       {
         "id": "sample_size",
-        "label": "Sample size",
-        "hint": "State N and justify that N is sufficient."
+        "label": "Sample size — is N sufficient to support generalization?",
+        "hint": "State N and justify power/precision."
       },
       {
         "id": "representativeness",
-        "label": "Representativeness",
-        "hint": "Justify that examples generalize to the target."
+        "label": "Representativeness — do cases reflect the target population?",
+        "hint": "Sampling frame, selection bias, comparability."
       },
       {
         "id": "defeaters",
-        "label": "Defeaters",
-        "hint": "Name known exceptions and why they don't apply."
+        "label": "Defeaters — are there known exceptions that break the generalization?",
+        "hint": "Name exceptions and explain why they don’t apply here."
       }
     ]
   },
   "sign": {
     "name": "Argument from Sign",
-    "description": "Infer a state from an observed sign/symptom.",
+    "description": "Infer an underlying state from an observed sign or indicator.",
     "critical_questions": [
       {
         "id": "sign",
-        "label": "Sign reliability",
-        "hint": "Show the sign indicates the state reliably."
+        "label": "Sign reliability — does the sign reliably indicate the state?",
+        "hint": "Sensitivity/specificity, predictive value."
       },
       {
         "id": "alt_explanations",
-        "label": "Alt. explanations",
-        "hint": "Rule out plausible rival explanations for the sign."
+        "label": "Alternative explanations — could the sign be caused by something else?",
+        "hint": "Rule out plausible rivals."
       },
       {
         "id": "base_rate",
-        "label": "Base rate",
-        "hint": "Provide base rates / error rates (FPR/FNR)."
+        "label": "Base rate — how common is the state in the population?",
+        "hint": "Provide base rates; avoid base‑rate fallacy."
       },
       {
         "id": "measurement",
-        "label": "Measurement",
-        "hint": "Show observation quality / measurement accuracy."
+        "label": "Measurement — is the observation accurate?",
+        "hint": "Instrument quality, inter‑rater reliability."
       }
     ]
   }

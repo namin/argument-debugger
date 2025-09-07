@@ -339,10 +339,20 @@ class ASPDebugger:
                     elif atom.name == "missing_cq":
                         to_claim = str(atom.arguments[0]).strip('"')
                         cq_id = str(atom.arguments[1]).strip('"')
-                        label, hint = self.cq_labels.get(cq_id, (cq_id, "Add an explicit answer (CQ: id — …)."))
+                        label, hint = self.cq_labels.get(cq_id, (cq_id, "Add an explicit answer."))
+                        #asp_issues.append(Issue(
+                        #    type="missing_cq",
+                        #    description=f"{_txt(to_claim)} — {label}: {hint}",
+                        #    involved_claims=[to_claim, cq_id]
+                        #))
+                        from schemes_io import get_cq_meta
+                        meta = get_cq_meta(cq_id, "schemes.json")
+                        title = meta.get("label", cq_id)
+                        why = meta.get("why_it_matters", "")
+                        hint = meta.get("hint", "")
                         asp_issues.append(Issue(
                             type="missing_cq",
-                            description=f"{_txt(to_claim)} — answer CQ '{cq_id}' ({label}): {hint}",
+                            description=f"{_txt(to_claim)} — {title}. {hint} {('Why it matters: ' + why) if why else ''}".strip(),
                             involved_claims=[to_claim, cq_id]
                         ))
                 
