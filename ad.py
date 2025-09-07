@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from llm import init_llm_client, generate_content
 from scheme_layer import SchemeAssigner, SchemeFacts
+from schemes_io import load_cq_labels
 
 # Safe quoting for ASP emission
 _BACKSLASH = "\\\\"
@@ -229,17 +230,22 @@ class ArgumentParser:
 class ASPDebugger:
     """Uses ASP to analyze argument structure and find issues"""
     
-    def __init__(self, debug: bool = False, cq_mode: str = "advice", cq_topk: int = 2):
+    def __init__(self, debug: bool = False, cq_mode: str = "advice", cq_topk: int = 2, cq_labels: Optional[Dict[str, Tuple[str, str]]] = None):
         self.debug = debug
         self.cq_mode = cq_mode
         self.cq_topk = cq_topk
-    
+        self.cq_labels = cq_labels or {}
+
     def analyze(self, argument: Argument) -> List[Issue]:
         """Find logical issues in the argument"""
         
         # First check for structural issues before running ASP
         issues = []
-        
+        claim_text = {c.id: c.content for c in argument.claims}
+        def _txt(cid: str) -> str:
+            t = claim_text.get(cid, "")
+            return f"{cid}: {t}" if t else cid
+
         # Check if conclusion has no inferences leading to it
         if argument.goal_claim:
             has_inference_to_goal = any(
@@ -333,9 +339,10 @@ class ASPDebugger:
                     elif atom.name == "missing_cq":
                         to_claim = str(atom.arguments[0]).strip('"')
                         cq_id = str(atom.arguments[1]).strip('"')
+                        label, hint = self.cq_labels.get(cq_id, (cq_id, "Add an explicit answer (CQ: id — …)."))
                         asp_issues.append(Issue(
                             type="missing_cq",
-                            description=f"Inference(s) into {to_claim} require an answer to CQ '{cq_id}'",
+                            description=f"{_txt(to_claim)} — answer CQ '{cq_id}' ({label}): {hint}",
                             involved_claims=[to_claim, cq_id]
                         ))
                 
@@ -705,13 +712,14 @@ OUTPUT RULES:
 class ArgumentDebugger:
     """Main system that combines all components"""
     
-    def __init__(self, debug: bool = False, cq_mode: str = "advice", cq_topk: int = 2):
+    def __init__(self, debug: bool = False, cq_mode: str = "advice", cq_topk: int = 2, cq_labels: Optional[Dict[str, Tuple[str, str]]] = None):
         self.parser = ArgumentParser()
-        self.analyzer = ASPDebugger(debug=debug, cq_mode=cq_mode, cq_topk=cq_topk)
+        self.analyzer = ASPDebugger(debug=debug, cq_mode=cq_mode, cq_topk=cq_topk, cq_labels=cq_labels)
         self.repairer = RepairGenerator(debug=debug)
         self.debug = debug
         self.cq_mode = cq_mode
         self.cq_topk = cq_topk
+        self.cq_labels = cq_labels or {}
     
     def _print_structure(self, argument: Argument, label: str = "Parsed structure"):
         """Helper to print argument structure"""
@@ -824,7 +832,8 @@ def main():
         print(f"Error reading file: {e}")
         return
     
-    debugger = ArgumentDebugger(debug=args.debug, cq_mode=args.cq, cq_topk=args.cq_topk)
+    cq_labels = load_cq_labels("schemes.json")
+    debugger = ArgumentDebugger(debug=args.debug, cq_mode=args.cq, cq_topk=args.cq_topk, cq_labels=cq_labels)
 
     for i, arg_text in enumerate(examples):
         print(f"\n## EXAMPLE {i+1}")

@@ -1,239 +1,282 @@
 {
-  "expert_opinion": {
-    "name": "Argument from Expert Opinion",
-    "defeasible": true,
-    "critical_questions": [
-      {
-        "id": "credibility",
-        "text": "Is the cited expert credible and competent?"
-      },
-      {
-        "id": "domain_fit",
-        "text": "Is the expert's domain the right one for the claim?"
-      },
-      {
-        "id": "consensus",
-        "text": "Do other qualified experts broadly agree?"
-      },
-      {
-        "id": "evidence_consistency",
-        "text": "Is the expert view consistent with the evidence?"
-      }
-    ]
+  "_meta": {
+    "version": "1.0.0",
+    "updated": "2025-09-07",
+    "notes": "Walton-style schemes with concise CQ labels + hints. CQ ids are globally consistent across schemes."
   },
   "practical_reasoning": {
-    "name": "Practical Reasoning (Goal \u2192 Action)",
-    "defeasible": true,
+    "name": "Argument from Practical Reasoning",
+    "description": "From problem/goal to proposed action.",
     "critical_questions": [
       {
         "id": "achieves",
-        "text": "Will the action actually achieve the goal?"
+        "label": "Effectiveness",
+        "hint": "Show evidence the action leads to the goal (A → G)."
       },
       {
         "id": "alternatives",
-        "text": "Is there a better available alternative?"
+        "label": "Alternatives",
+        "hint": "Compare plausible options; justify why this one is best."
       },
       {
         "id": "side_effects",
-        "text": "Are the side effects acceptable?"
+        "label": "Side effects",
+        "hint": "Acknowledge costs/harms and how they’re mitigated."
       },
       {
         "id": "conflicts",
-        "text": "Does the action conflict with other important goals?"
+        "label": "Goal conflicts",
+        "hint": "Show the action doesn't undermine other important goals."
       },
       {
         "id": "preconditions",
-        "text": "Do preconditions for the action hold?"
+        "label": "Feasibility",
+        "hint": "Establish resources, authority, capacity, and timing."
       }
     ]
   },
   "argument_from_consequences": {
     "name": "Argument from (Good/Bad) Consequences",
-    "defeasible": true,
+    "description": "Do/avoid A because of its consequences.",
     "critical_questions": [
       {
         "id": "probability",
-        "text": "How probable are the cited consequences?"
+        "label": "Likelihood",
+        "hint": "Estimate how likely the predicted outcome is."
       },
       {
         "id": "severity",
-        "text": "How serious/valuable are the consequences?"
+        "label": "Severity",
+        "hint": "Explain how important/serious the outcome would be."
       },
       {
         "id": "countervailing",
-        "text": "Are there countervailing consequences that outweigh them?"
-      },
-      {
-        "id": "value_tradeoffs",
-        "text": "What value trade-offs affect the recommendation?"
+        "label": "Countervailing",
+        "hint": "Address opposing consequences and tradeoffs."
       }
     ]
   },
-  "cause_to_effect": {
-    "name": "Cause \u2192 Effect",
-    "defeasible": true,
+  "rules_to_case": {
+    "name": "Apply Rule to Case",
+    "description": "From general rule to specific case.",
     "critical_questions": [
       {
-        "id": "strength",
-        "text": "How strong/regular is the causal link?"
+        "id": "matching",
+        "label": "Rule matching",
+        "hint": "Show the case meets the rule’s stated conditions."
       },
       {
-        "id": "interveners",
-        "text": "Are there intervening factors that block the effect?"
-      },
-      {
-        "id": "alternatives",
-        "text": "Are there alternative causes?"
-      },
-      {
-        "id": "testability",
-        "text": "Is the causal claim testable and well-supported?"
+        "id": "exceptions",
+        "label": "Exceptions",
+        "hint": "Address whether any rule-exceptions apply."
       }
     ]
   },
-  "sign": {
-    "name": "Sign",
-    "defeasible": true,
+  "definition": {
+    "name": "Definition to Case",
+    "description": "Classify by definition criteria.",
     "critical_questions": [
       {
-        "id": "reliability",
-        "text": "How reliable is the sign for the hypothesis?"
+        "id": "fit",
+        "label": "Definition fit",
+        "hint": "Map the case to each definition criterion."
       },
       {
-        "id": "alt_explanations",
-        "text": "Are there plausible alternative explanations?"
+        "id": "adequacy",
+        "label": "Definition adequacy",
+        "hint": "Show the definition is accepted/appropriate here."
       },
       {
-        "id": "base_rate",
-        "text": "What are the relevant base rates?"
-      },
-      {
-        "id": "measurement",
-        "text": "Is the observation measured/observed accurately?"
+        "id": "borderline",
+        "label": "Borderline cases",
+        "hint": "Handle vagueness and edge cases explicitly."
       }
     ]
   },
   "analogy": {
-    "name": "Analogy",
-    "defeasible": true,
+    "name": "Argument from Analogy",
+    "description": "Transfer judgment from a similar case.",
     "critical_questions": [
       {
-        "id": "relevance",
-        "text": "Are the similarities relevant to the transferred property?"
+        "id": "similarities",
+        "label": "Relevant similarities",
+        "hint": "Specify the material similarities that support transfer."
       },
       {
-        "id": "disanalogy",
-        "text": "Are there important disanalogies?"
+        "id": "relevant_differences",
+        "label": "Relevant differences",
+        "hint": "Acknowledge disanalogies that weaken transfer."
       },
       {
-        "id": "typicality",
-        "text": "Are the source/target typical?"
-      },
-      {
-        "id": "coverage",
-        "text": "Is the similarity robust and comprehensive?"
+        "id": "analogy_base_rate",
+        "label": "Base rate / typicality",
+        "hint": "Show both cases are typical instances, not outliers."
       }
     ]
   },
-  "example": {
-    "name": "Argument from Example (Induction)",
-    "defeasible": true,
+  "cause_to_effect": {
+    "name": "Cause to Effect",
+    "description": "From proposed cause to expected effect.",
     "critical_questions": [
       {
-        "id": "sample_size",
-        "text": "Is the sample large enough?"
+        "id": "strength",
+        "label": "Causal strength",
+        "hint": "Quantify effect size; cite mechanism/regularity if possible."
       },
       {
-        "id": "representativeness",
-        "text": "Is the sample representative?"
+        "id": "mechanism",
+        "label": "Mechanism",
+        "hint": "Explain the process linking cause to effect."
+      },
+      {
+        "id": "temporality",
+        "label": "Temporality",
+        "hint": "Cause precedes effect."
+      },
+      {
+        "id": "confounders",
+        "label": "Confounders",
+        "hint": "Control major confounders; provide robustness checks."
+      },
+      {
+        "id": "interveners",
+        "label": "Interveners",
+        "hint": "Rule out blockers; show required conditions hold."
+      },
+      {
+        "id": "robustness",
+        "label": "Robustness",
+        "hint": "Replicate across datasets/methods where possible."
+      }
+    ]
+  },
+  "correlation_to_causation": {
+    "name": "Correlation to Causation",
+    "description": "From observed correlation to causal claim.",
+    "critical_questions": [
+      {
+        "id": "temporality",
+        "label": "Temporality",
+        "hint": "Show the putative cause comes before the effect."
+      },
+      {
+        "id": "confounders",
+        "label": "Confounders",
+        "hint": "Rule out plausible common causes (backdoors)."
+      },
+      {
+        "id": "mechanism",
+        "label": "Mechanism",
+        "hint": "Give a plausible mechanism linking X to Y."
+      },
+      {
+        "id": "robustness",
+        "label": "Robustness",
+        "hint": "Check stability across methods, datasets, model specs."
+      }
+    ]
+  },
+  "expert_opinion": {
+    "name": "Expert Opinion",
+    "description": "Rely on an expert’s judgment.",
+    "critical_questions": [
+      {
+        "id": "credibility",
+        "label": "Credibility",
+        "hint": "Establish expertise, track record, and standing."
+      },
+      {
+        "id": "domain_fit",
+        "label": "Domain fit",
+        "hint": "Show the expert’s domain matches the claim."
+      },
+      {
+        "id": "reliability",
+        "label": "Reliability",
+        "hint": "Demonstrate general accuracy/trustworthiness."
       },
       {
         "id": "bias",
-        "text": "Are there selection/measurement biases?"
+        "label": "Bias",
+        "hint": "Disclose and handle conflicts of interest."
       },
       {
-        "id": "defeaters",
-        "text": "Are there known exceptions/defeaters?"
+        "id": "corroboration",
+        "label": "Corroboration",
+        "hint": "Add independent confirming sources."
       }
     ]
   },
   "position_to_know": {
     "name": "Position to Know (Testimony)",
-    "defeasible": true,
+    "description": "Trust a witness/source with privileged access.",
     "critical_questions": [
       {
         "id": "access",
-        "text": "Does the source have reliable access to the information?"
+        "label": "Access to facts",
+        "hint": "Show the source had the right information."
       },
       {
         "id": "reliability",
-        "text": "Is the source generally reliable/truthful?"
+        "label": "Reliability",
+        "hint": "Demonstrate general accuracy/truthfulness."
       },
       {
         "id": "bias",
-        "text": "Does the source have conflicts of interest?"
+        "label": "Bias",
+        "hint": "Disclose and handle conflicts of interest."
       },
       {
         "id": "corroboration",
-        "text": "Is there independent corroboration?"
+        "label": "Corroboration",
+        "hint": "Provide independent confirming evidence."
       }
     ]
   },
-  "correlation_to_causation": {
-    "name": "Correlation \u2192 Causation (Causal Inference)",
-    "defeasible": true,
+  "example": {
+    "name": "Argument from Example",
+    "description": "Generalize from one or more instances.",
     "critical_questions": [
       {
-        "id": "confounders",
-        "text": "Have plausible confounders been controlled for?"
+        "id": "sample_size",
+        "label": "Sample size",
+        "hint": "State N and justify that N is sufficient."
       },
       {
-        "id": "mechanism",
-        "text": "Is there a plausible mechanism?"
+        "id": "representativeness",
+        "label": "Representativeness",
+        "hint": "Justify that examples generalize to the target."
       },
       {
-        "id": "temporality",
-        "text": "Does X precede Y (no reverse causation)?"
-      },
-      {
-        "id": "robustness",
-        "text": "Is the correlation robust across datasets/methods?"
+        "id": "defeaters",
+        "label": "Defeaters",
+        "hint": "Name known exceptions and why they don't apply."
       }
     ]
   },
-  "rules_to_case": {
-    "name": "Rule Application (From Rule to Case)",
-    "defeasible": false,
+  "sign": {
+    "name": "Argument from Sign",
+    "description": "Infer a state from an observed sign/symptom.",
     "critical_questions": [
       {
-        "id": "matching",
-        "text": "Do the facts match the rule conditions?"
+        "id": "sign",
+        "label": "Sign reliability",
+        "hint": "Show the sign indicates the state reliably."
       },
       {
-        "id": "exceptions",
-        "text": "Are there applicable exceptions to the rule?"
+        "id": "alt_explanations",
+        "label": "Alt. explanations",
+        "hint": "Rule out plausible rival explanations for the sign."
       },
       {
-        "id": "conflicts",
-        "text": "Does this rule conflict with a higher-priority rule?"
-      }
-    ]
-  },
-  "definition": {
-    "name": "Argument from Definition",
-    "defeasible": true,
-    "critical_questions": [
-      {
-        "id": "adequacy",
-        "text": "Is the definition adequate and accepted?"
+        "id": "base_rate",
+        "label": "Base rate",
+        "hint": "Provide base rates / error rates (FPR/FNR)."
       },
       {
-        "id": "fit",
-        "text": "Do the case facts actually fit the definition?"
-      },
-      {
-        "id": "borderline",
-        "text": "Are there borderline cases or vagueness to address?"
+        "id": "measurement",
+        "label": "Measurement",
+        "hint": "Show observation quality / measurement accuracy."
       }
     ]
   }
