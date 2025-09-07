@@ -464,6 +464,9 @@ class ASPDebugger:
 % -------------------------
 % Support graph (closure)
 % -------------------------
+% Base support edges
+supports(X, Y) :- inference(X, Y).
+supports(X, Z) :- supports(X, Y), inference(Y, Z).
 
 % Bridge through equivalence (both ways because Python emits both directions).
 supports(X, Z) :- supports(X, Y), equivalent(Y, Z).
