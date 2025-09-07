@@ -2,7 +2,7 @@
 from __future__ import annotations
 import json
 from functools import lru_cache
-from typing import Dict, Tuple, Any, Optional
+from typing import Dict, Tuple, Any
 
 DEFAULT_SCHEMES_PATH = "schemes.json"
 
@@ -20,31 +20,42 @@ def load_cq_labels(path: str = DEFAULT_SCHEMES_PATH) -> Dict[str, Tuple[str, str
             continue
         for cq in scheme.get("critical_questions", []):
             cid = cq["id"]
+            title = cq.get("title") or cq.get("label", cid)
+            short = cq.get("short") or cq.get("hint", "")
             if cid not in labels:
-                labels[cid] = (cq.get("label", cid), cq.get("hint", ""))
+                labels[cid] = (title, short)
     return labels
 
 @lru_cache(maxsize=1)
-def load_cq_meta(path: str = DEFAULT_SCHEMES_PATH) -> Dict[str, Dict[str, Any]]:
-    """Return a map {cq_id: full_metadata_dict} from schemes.json."""
+def load_cq_meta(path: str = DEFAULT_SCHEMES_PATH):
     data = load_schemes(path)
     meta: Dict[str, Dict[str, Any]] = {}
     for sid, scheme in data.items():
         if sid.startswith("_"):
             continue
         for cq in scheme.get("critical_questions", []):
-            cid = cq["id"]
-            if cid not in meta:
-                meta[cid] = cq
+            meta[cq["id"]] = cq
     return meta
 
-def get_cq_label_hint(cq_id: str, path: str = DEFAULT_SCHEMES_PATH) -> Tuple[str, str]:
-    labels = load_cq_labels(path)
-    return labels.get(cq_id, (cq_id, ""))
+def format_cq_one_liner(cq_id: str, path: str = DEFAULT_SCHEMES_PATH) -> str:
+    meta = load_cq_meta(path).get(cq_id, {"title": cq_id, "short": ""})
+    title = meta.get("title", cq_id)
+    short = meta.get("short", "").rstrip(".")
+    return f"{title} — {short}." if short else title
 
-def get_cq_meta(cq_id: str, path: str = DEFAULT_SCHEMES_PATH) -> Dict[str, Any]:
-    meta = load_cq_meta(path)
-    return meta.get(cq_id, {"id": cq_id, "label": cq_id, "hint": ""})
+def format_cq_extended(cq_id: str, path: str = DEFAULT_SCHEMES_PATH) -> str:
+    meta = load_cq_meta(path).get(cq_id, {"title": cq_id})
+    parts = [meta.get("title", cq_id)]
+    q = meta.get("question")
+    if q:
+        parts.append(q)
+    hint = meta.get("hint")
+    if hint:
+        parts.append(hint)
+    why = meta.get("why_it_matters")
+    if why:
+        parts.append(f"Why it matters: {why}")
+    return " — ".join(parts)
 
 ALLOWED_BY_RULE_TYPE = {
     "deductive": [

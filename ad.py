@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from llm import init_llm_client, generate_content
 from scheme_layer import SchemeAssigner, SchemeFacts
-from schemes_io import load_cq_labels
+from schemes_io import format_cq_one_liner, format_cq_extended
 
 # Safe quoting for ASP emission
 _BACKSLASH = "\\\\"
@@ -230,11 +230,11 @@ class ArgumentParser:
 class ASPDebugger:
     """Uses ASP to analyze argument structure and find issues"""
     
-    def __init__(self, debug: bool = False, cq_mode: str = "advice", cq_topk: int = 2, cq_labels: Optional[Dict[str, Tuple[str, str]]] = None):
+    def __init__(self, debug: bool = False, cq_mode: str = "advice", cq_topk: int = 2, cq_style: str = 'one-line'):
         self.debug = debug
         self.cq_mode = cq_mode
         self.cq_topk = cq_topk
-        self.cq_labels = cq_labels or {}
+        self.cq_style = cq_style
 
     def analyze(self, argument: Argument) -> List[Issue]:
         """Find logical issues in the argument"""
@@ -339,20 +339,10 @@ class ASPDebugger:
                     elif atom.name == "missing_cq":
                         to_claim = str(atom.arguments[0]).strip('"')
                         cq_id = str(atom.arguments[1]).strip('"')
-                        label, hint = self.cq_labels.get(cq_id, (cq_id, "Add an explicit answer."))
-                        #asp_issues.append(Issue(
-                        #    type="missing_cq",
-                        #    description=f"{_txt(to_claim)} — {label}: {hint}",
-                        #    involved_claims=[to_claim, cq_id]
-                        #))
-                        from schemes_io import get_cq_meta
-                        meta = get_cq_meta(cq_id, "schemes.json")
-                        title = meta.get("label", cq_id)
-                        why = meta.get("why_it_matters", "")
-                        hint = meta.get("hint", "")
+                        text = format_cq_extended(cq_id) if self.cq_style != 'one-line' else format_cq_one_liner(cq_id)
                         asp_issues.append(Issue(
                             type="missing_cq",
-                            description=f"{_txt(to_claim)} — {title}. {hint} {('Why it matters: ' + why) if why else ''}".strip(),
+                            description=f"{to_claim}: {text}",
                             involved_claims=[to_claim, cq_id]
                         ))
                 
@@ -722,14 +712,13 @@ OUTPUT RULES:
 class ArgumentDebugger:
     """Main system that combines all components"""
     
-    def __init__(self, debug: bool = False, cq_mode: str = "advice", cq_topk: int = 2, cq_labels: Optional[Dict[str, Tuple[str, str]]] = None):
+    def __init__(self, debug: bool = False, cq_mode: str = "advice", cq_topk: int = 2, cq_style: str = 'one-line'):
         self.parser = ArgumentParser()
-        self.analyzer = ASPDebugger(debug=debug, cq_mode=cq_mode, cq_topk=cq_topk, cq_labels=cq_labels)
+        self.analyzer = ASPDebugger(debug=debug, cq_mode=cq_mode, cq_topk=cq_topk, cq_style=cq_style)
         self.repairer = RepairGenerator(debug=debug)
         self.debug = debug
         self.cq_mode = cq_mode
         self.cq_topk = cq_topk
-        self.cq_labels = cq_labels or {}
     
     def _print_structure(self, argument: Argument, label: str = "Parsed structure"):
         """Helper to print argument structure"""
@@ -820,6 +809,7 @@ def main():
                        help='Skip generating repairs (faster, useful for testing)')
     parser.add_argument('--cq', choices=['off','advice','enforce'], default='advice')
     parser.add_argument('--cq-topk', type=int, default=2)
+    parser.add_argument('--cq-style', choices=['one-line','extended'], default='one-line')
     parser.add_argument('--format', choices=['friendly','compact','json'], default='friendly')
     parser.add_argument('--verbose', action='store_true')
     
@@ -842,8 +832,7 @@ def main():
         print(f"Error reading file: {e}")
         return
     
-    cq_labels = load_cq_labels("schemes.json")
-    debugger = ArgumentDebugger(debug=args.debug, cq_mode=args.cq, cq_topk=args.cq_topk, cq_labels=cq_labels)
+    debugger = ArgumentDebugger(debug=args.debug, cq_mode=args.cq, cq_topk=args.cq_topk, cq_style=args.cq_style)
 
     for i, arg_text in enumerate(examples):
         print(f"\n## EXAMPLE {i+1}")
