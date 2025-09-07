@@ -1,141 +1,144 @@
 
 from __future__ import annotations
-import json
+import json, re
 from dataclasses import dataclass
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from pydantic import BaseModel, Field
 from google.genai import types
 from llm import init_llm_client, generate_content
 
-# -----------------------------
-# Pydantic schemas for LLM I/O
-# -----------------------------
+# --------- Pydantic IO schema for the scheme call ---------
 
 class SchemeItem(BaseModel):
-    from_claims: List[str] = Field(description="IDs of premises used in this inference")
-    to_claim: str = Field(description="ID of the conclusion this inference aims to support")
-    scheme_id: str = Field(description="One of the allowed scheme ids from schemes.json")
-    required_cqs: List[str] = Field(default_factory=list, description="Critical Questions (ids) that must be answered for this inference to stand")
-    answered_cqs: List[str] = Field(default_factory=list, description="Subset of required_cqs that are answered explicitly in the argument text")
+    from_claims: List[str] = Field(description="Premise claim IDs used in this inference")
+    to_claim: str = Field(description="Conclusion claim ID this inference supports")
+    scheme_id: str = Field(description="Chosen scheme id (must be one of the allowed ids provided)")
+    required_cqs: List[str] = Field(default_factory=list, description="At most k CQ IDs deemed necessary for this inference")
 
 class SchemeAnalysis(BaseModel):
     items: List[SchemeItem] = Field(default_factory=list)
 
-# -----------------------------
-# Runtime container for results
-# -----------------------------
+# --------- Facts returned to host pipeline ---------
 
 @dataclass
 class SchemeFacts:
-    # Facts to emit into ASP
+    # After aggregation per conclusion:
     requires: List[Tuple[str, str]]  # (to_claim, cq_id)
     answered: List[Tuple[str, str]]  # (to_claim, cq_id)
-    # For UI/debugging
-    items: List[SchemeItem]
+    raw_items: List[SchemeItem]      # Original per-inference items (for debugging)
 
-# -----------------------------
-# Main classifier
-# -----------------------------
+# --------- Main LLM-driven assigner ---------
 
 class SchemeAssigner:
     """
-    LLM-driven scheme classifier that:
-      - assigns a scheme to each inference,
-      - selects applicable critical questions (CQs) from schemes.json,
-      - marks which CQs are answered in the text (explicit 'CQ: id — ...' or implicit).
-    It uses the *same* generate_content() library calls as the rest of ad.py.
+    LLM-only scheme assignment + CQ selection.
+    Features:
+      - restrict schemes by parser's rule_type (deductive/inductive/causal),
+      - cap to top-k CQs (per inference request and per-conclusion aggregation),
+      - aggregate CQs per conclusion to avoid duplicates.
     """
 
-    def __init__(self, schemes_path: str = "schemes.json", temperature: float = 0.0):
+    def __init__(self, schemes_path: str = "schemes.json", topk: int = 2, temperature: float = 0.0):
         with open(schemes_path, "r", encoding="utf-8") as f:
             self.schemes = json.load(f)
+        self.topk = max(0, int(topk))
         self.client = init_llm_client()
         self.config = types.GenerateContentConfig(
             temperature=temperature,
             response_mime_type="application/json",
             response_schema=SchemeAnalysis,
-            thinking_config=types.ThinkingConfig(thinking_budget=0)
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         )
 
-    def analyze(self, argument, original_text: str) -> SchemeFacts:
-        """
-        argument: the parsed Argument object from ArgumentParser.parse_argument()
-        original_text: the original NL block (used to detect explicit CQ: answers)
-        Returns SchemeFacts with requires/answered facts to add to ASP.
-        """
-        # Prepare a compact description of allowed schemes and CQ ids for the LLM.
-        allowed = {k: [cq["id"] for cq in v.get("critical_questions", [])]
-                   for k, v in self.schemes.items()}
+    def analyze(self, argument, original_text: str, topk: Optional[int] = None) -> SchemeFacts:
+        k = self.topk if topk is None else max(0, int(topk))
 
-        # Build a JSON-friendly snapshot of claims and inferences
+        # Prepare allowed schemes per rule_type
+        allowed_map = {
+            "deductive": [
+                "practical_reasoning",
+                "argument_from_consequences",
+                "rules_to_case",
+                "definition",
+                "analogy",
+                "cause_to_effect",
+                "expert_opinion",
+                "position_to_know",
+            ],
+            "inductive": [
+                "example",
+                "analogy",
+                "sign",
+                "correlation_to_causation",
+                "cause_to_effect",
+            ],
+            "causal": [
+                "cause_to_effect",
+                "correlation_to_causation",
+                "sign",
+            ],
+        }
+
         claims_json = [{"id": c.id, "content": c.content, "type": c.type} for c in argument.claims]
         infs_json = [{"from_claims": i.from_claims, "to_claim": i.to_claim, "rule_type": i.rule_type}
                      for i in argument.inferences]
 
+        # Build the instruction. We include an allowed set for each inference by rule_type.
+        # We also ask the LLM to return at most k CQs per inference.
+        # We *still* aggregate per conclusion afterward to ensure a hard cap of k per conclusion.
         prompt = f"""
-You are classifying *inferences* in an argument into standard argumentation schemes and listing Critical Questions (CQs).
-Use only scheme_ids from this set (keys): {list(allowed.keys())}.
-For each chosen scheme, the only allowed CQ ids are: {allowed}.
+You classify each inference in an argument into a standard argumentation scheme and list
+the most relevant critical questions (CQs). Use ONLY the allowed schemes for each inference's rule_type.
 
-INPUT (claims and inferences):
-CLAIMS_JSON:
+SCHEMES (ids → CQs):
+{json.dumps({sid: [cq["id"] for cq in s.get("critical_questions", [])] for sid, s in self.schemes.items()}, ensure_ascii=False)}
+
+ALLOWED BY RULE TYPE:
+{json.dumps(allowed_map, ensure_ascii=False)}
+
+TOP-K CQs per inference: {k}
+
+INPUT:
+CLAIMS:
 {json.dumps(claims_json, ensure_ascii=False)}
-INFERENCES_JSON:
+INFERENCES (each has rule_type):
 {json.dumps(infs_json, ensure_ascii=False)}
 
-ORIGINAL ARGUMENT TEXT (may include explicit CQ answers like "CQ: alternatives — ..."):
+ORIGINAL ARGUMENT TEXT (may include explicit answers like 'CQ: <id> — ...'):
 {original_text}
 
 TASK:
-For each inference (each element of INFERENCES_JSON), output a SchemeItem with:
-  - scheme_id: one of the allowed keys
-  - required_cqs: the subset of the scheme's CQ ids that are actually relevant here
-  - answered_cqs: the subset of required_cqs explicitly answered by the text above
-    (If the text contains a line like "CQ: <id> — ..." treat that CQ as answered.)
+For each inference, output a JSON object:
+  - scheme_id: choose ONE from allowed_map[rule_type]
+  - required_cqs: list of up to TOP-K CQ ids *from that scheme* that are most relevant here
+Do not include more than TOP-K CQs for any single inference.
 
-CONSTRAINTS:
-- required_cqs must be a subset of the scheme's allowed CQ ids.
-- answered_cqs must be a subset of required_cqs.
-- Return strictly valid JSON for the provided schema.
+Return JSON with schema: {{"items":[...]}} only.
 """
 
         resp = generate_content(self.client, contents=prompt, config=self.config)
         analysis = SchemeAnalysis.model_validate_json(resp.text)
 
+        # Aggregate per conclusion id (to_claim): union required CQs across its incoming inferences.
+        per_to_required: Dict[str, List[str]] = {}
+        for item in analysis.items:
+            cur = per_to_required.setdefault(item.to_claim, [])
+            for cq in item.required_cqs:
+                if cq not in cur:
+                    cur.append(cq)
+
+        # Parse explicit CQ answers present in the text, e.g., "CQ: alternatives — ..."
+        explicit = set(m.lower() for m in re.findall(r"^\\s*CQ\\s*:\\s*([A-Za-z0-9_\\-]+)", original_text, flags=re.M))
+
         requires: List[Tuple[str, str]] = []
         answered: List[Tuple[str, str]] = []
-        for item in analysis.items:
-            for cq in item.required_cqs:
-                requires.append((item.to_claim, cq))
-            for cq in item.answered_cqs:
-                answered.append((item.to_claim, cq))
 
-        return SchemeFacts(requires=requires, answered=answered, items=list(analysis.items))
+        for to_claim, cqs in per_to_required.items():
+            # Cap to top-k per conclusion
+            capped = cqs[:k] if k > 0 else []
+            for cq in capped:
+                requires.append((to_claim, cq))
+                if cq.lower() in explicit:
+                    answered.append((to_claim, cq))
 
-    @staticmethod
-    def emit_asp_facts(facts: SchemeFacts, q):
-        """
-        Turn SchemeFacts into ASP facts using the q() escaping function from ad.py.
-        We purposely use (to_claim, cq_id) pairs to avoid introducing inference IDs.
-        """
-        lines = []
-        for (to_claim, cq) in facts.requires:
-            lines.append(f"requires_cq({q(to_claim)},{q(cq)}).")
-        for (to_claim, cq) in facts.answered:
-            lines.append(f"answered_cq({q(to_claim)},{q(cq)}).")
-        return "\n".join(lines) + ("\n" if lines else "")
-
-# Optional: minimal ASP rules you can splice into your program builder.
-SCHEMES_LP = r"""
-% === Scheme CQ enforcement ===
-% Facts expected:
-%   requires_cq(To, CqId).
-%   answered_cq(To, CqId).
-
-% If any CQ required for To is unanswered, disable all inferences into To.
-disabled_inference(F, To) :- inference(F, To), requires_cq(To, Q), not answered_cq(To, Q).
-
-% Report as an issue
-missing_cq(To, Q) :- requires_cq(To, Q), not answered_cq(To, Q).
-#show missing_cq/2.
-"""
+        return SchemeFacts(requires=requires, answered=answered, raw_items=list(analysis.items))
