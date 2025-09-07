@@ -1,0 +1,91 @@
+Premise P1: Implementing a congestion charge would reduce traffic delays and improve air quality in Midtown.
+Evidence E1: Prior implementations showed declines in vehicle miles traveled and NOx.
+Because E1, P1.
+Warrant W1: Policy should adopt actions that promote stated goals when evidence shows benefits.
+Therefore C: The city should implement a congestion charge in Midtown next year.
+Goal: The city should implement a congestion charge in Midtown next year.
+
+Premise P1: Implementing a congestion charge would reduce traffic delays and improve air quality in Midtown.
+Evidence E1: Prior implementations showed declines in vehicle miles traveled and NOx.
+Because E1, P1.
+Warrant W1: Policy should adopt actions that promote stated goals when evidence shows benefits.
+Therefore C: The city should implement a congestion charge in Midtown next year.
+Goal: The city should implement a congestion charge in Midtown next year.
+CQ: achieves — London/Stockholm data show sustained reductions in congestion and NOx after implementation.
+CQ: alternatives — Signal retiming and extra bus lanes were modeled; neither met the same targets alone.
+CQ: side_effects — Delivery exemptions and off-peak discounts mitigate cost burdens.
+CQ: conflicts — The charge is aligned with the city’s public health and equity goals via low-income discounts.
+CQ: preconditions — Enabling legislation and gantry procurement are funded.
+
+Premise P1: According to the National Panel on Urban Air Quality, a congestion charge substantially reduces NOx in dense cores.
+Evidence E1: The panel's 2024 statement asserts this within urban transport policy.
+Because E1, P1.
+Therefore C: A congestion charge substantially reduces NOx in dense urban cores.
+Goal: A congestion charge substantially reduces NOx in dense urban cores.
+
+Premise P1: According to the National Panel on Urban Air Quality, a congestion charge substantially reduces NOx in dense cores.
+Evidence E1: The panel's 2024 statement asserts this within urban transport policy.
+Because E1, P1.
+Therefore C: A congestion charge substantially reduces NOx in dense urban cores.
+Goal: A congestion charge substantially reduces NOx in dense urban cores.
+CQ: credibility — The panel is chartered under a national academy with peer-nominated subject-matter experts.
+CQ: domain_fit — The conclusion concerns urban transport emissions, matching the panel’s domain.
+CQ: consensus — The statement was a formal consensus with no dissenting votes.
+CQ: evidence_consistency — The cited meta-analysis of city implementations aligns with the claim.
+
+Premise P1: Banning menthol cigarettes will lead to increased illicit trade.
+Evidence E1: Countries that enacted bans saw growth in black-market supply afterward.
+Because E1, P1.
+Therefore C: If menthols are banned, illicit trade is likely to increase.
+Goal: If menthols are banned, illicit trade is likely to increase.
+
+Premise P1: Banning menthol cigarettes will lead to increased illicit trade.
+Evidence E1: Countries that enacted bans saw growth in black-market supply afterward.
+Because E1, P1.
+Therefore C: If menthols are banned, illicit trade is likely to increase.
+Goal: If menthols are banned, illicit trade is likely to increase.
+CQ: strength — Multiple post-ban studies report consistent, sizable effects on illicit share.
+CQ: interveners — Enforcement intensity and border controls are accounted for in the models.
+CQ: alternatives — Demand shifts due to price shocks and flavor substitutes were tested and are insufficient alone.
+CQ: testability — The hypothesis is testable via time-series with instruments and cross-jurisdiction comparisons.
+
+Premise P1: Allowing unreviewed AI-generated code into production is like letting new interns push without review.
+Premise P2: Interns require human review before merges.
+Therefore C: AI-generated changes should require human code review before merges.
+Goal: AI-generated changes should require human code review before merges.
+
+Premise P1: Allowing unreviewed AI-generated code into production is like letting new interns push without review.
+Premise P2: Interns require human review before merges.
+Therefore C: AI-generated changes should require human code review before merges.
+Goal: AI-generated changes should require human code review before merges.
+CQ: relevance — Both cases involve contributors with unknown reliability producing diffs that can break invariants.
+CQ: disanalogy — Unlike interns, AI lacks accountability; this strengthens, not weakens, the review requirement.
+CQ: typicality — The comparison uses common entry-level interns and mainstream LLM code assistants as typical cases.
+CQ: coverage — The comparison covers code safety, auditability, and rollback; other factors are non-essential.
+
+Premise P1: Policy P defines "medical misinformation" as content that contradicts public health guidance and creates significant risk of harm.
+Premise P2: The post asserts claims that contradict the current public guidance and encourage harmful actions.
+Therefore C: The post qualifies as medical misinformation under Policy P.
+Goal: The post qualifies as medical misinformation under Policy P.
+
+Premise P1: Policy P defines "medical misinformation" as content that contradicts public health guidance and creates significant risk of harm.
+Premise P2: The post asserts claims that contradict the current public guidance and encourage harmful actions.
+Therefore C: The post qualifies as medical misinformation under Policy P.
+Goal: The post qualifies as medical misinformation under Policy P.
+CQ: adequacy — Policy P's definition is the current, published standard for the platform.
+CQ: fit — The cited sentences directly contradict guidance and advise unsafe interventions.
+CQ: borderline — The claims are categorical, not edge cases or satire.
+
+Premise P1: A sudden >50% increase in 5xx responses is a sign of a backend outage.
+Premise P2: We observed a 60% increase in 5xx responses starting at 14:05.
+Therefore C: There is likely an ongoing backend outage.
+Goal: There is likely an ongoing backend outage.
+
+Premise P1: A sudden >50% increase in 5xx responses is a sign of a backend outage.
+Premise P2: We observed a 60% increase in 5xx responses starting at 14:05.
+Therefore C: There is likely an ongoing backend outage.
+Goal: There is likely an ongoing backend outage.
+CQ: reliability — Historically, spikes >50% in this service correlate with true outages >90% of the time.
+CQ: alt_explanations — No deploys, load tests, or monitor regressions occurred in the last 24h.
+CQ: base_rate — Outages occur on <1% of days; combining base rates with the sign gives high posterior odds.
+CQ: measurement — 5xx spikes were confirmed in two independent logs and synthetic probes.

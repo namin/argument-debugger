@@ -1,0 +1,240 @@
+{
+  "expert_opinion": {
+    "name": "Argument from Expert Opinion",
+    "defeasible": true,
+    "critical_questions": [
+      {
+        "id": "credibility",
+        "text": "Is the cited expert credible and competent?"
+      },
+      {
+        "id": "domain_fit",
+        "text": "Is the expert's domain the right one for the claim?"
+      },
+      {
+        "id": "consensus",
+        "text": "Do other qualified experts broadly agree?"
+      },
+      {
+        "id": "evidence_consistency",
+        "text": "Is the expert view consistent with the evidence?"
+      }
+    ]
+  },
+  "practical_reasoning": {
+    "name": "Practical Reasoning (Goal \u2192 Action)",
+    "defeasible": true,
+    "critical_questions": [
+      {
+        "id": "achieves",
+        "text": "Will the action actually achieve the goal?"
+      },
+      {
+        "id": "alternatives",
+        "text": "Is there a better available alternative?"
+      },
+      {
+        "id": "side_effects",
+        "text": "Are the side effects acceptable?"
+      },
+      {
+        "id": "conflicts",
+        "text": "Does the action conflict with other important goals?"
+      },
+      {
+        "id": "preconditions",
+        "text": "Do preconditions for the action hold?"
+      }
+    ]
+  },
+  "argument_from_consequences": {
+    "name": "Argument from (Good/Bad) Consequences",
+    "defeasible": true,
+    "critical_questions": [
+      {
+        "id": "probability",
+        "text": "How probable are the cited consequences?"
+      },
+      {
+        "id": "severity",
+        "text": "How serious/valuable are the consequences?"
+      },
+      {
+        "id": "countervailing",
+        "text": "Are there countervailing consequences that outweigh them?"
+      },
+      {
+        "id": "value_tradeoffs",
+        "text": "What value trade-offs affect the recommendation?"
+      }
+    ]
+  },
+  "cause_to_effect": {
+    "name": "Cause \u2192 Effect",
+    "defeasible": true,
+    "critical_questions": [
+      {
+        "id": "strength",
+        "text": "How strong/regular is the causal link?"
+      },
+      {
+        "id": "interveners",
+        "text": "Are there intervening factors that block the effect?"
+      },
+      {
+        "id": "alternatives",
+        "text": "Are there alternative causes?"
+      },
+      {
+        "id": "testability",
+        "text": "Is the causal claim testable and well-supported?"
+      }
+    ]
+  },
+  "sign": {
+    "name": "Sign",
+    "defeasible": true,
+    "critical_questions": [
+      {
+        "id": "reliability",
+        "text": "How reliable is the sign for the hypothesis?"
+      },
+      {
+        "id": "alt_explanations",
+        "text": "Are there plausible alternative explanations?"
+      },
+      {
+        "id": "base_rate",
+        "text": "What are the relevant base rates?"
+      },
+      {
+        "id": "measurement",
+        "text": "Is the observation measured/observed accurately?"
+      }
+    ]
+  },
+  "analogy": {
+    "name": "Analogy",
+    "defeasible": true,
+    "critical_questions": [
+      {
+        "id": "relevance",
+        "text": "Are the similarities relevant to the transferred property?"
+      },
+      {
+        "id": "disanalogy",
+        "text": "Are there important disanalogies?"
+      },
+      {
+        "id": "typicality",
+        "text": "Are the source/target typical?"
+      },
+      {
+        "id": "coverage",
+        "text": "Is the similarity robust and comprehensive?"
+      }
+    ]
+  },
+  "example": {
+    "name": "Argument from Example (Induction)",
+    "defeasible": true,
+    "critical_questions": [
+      {
+        "id": "sample_size",
+        "text": "Is the sample large enough?"
+      },
+      {
+        "id": "representativeness",
+        "text": "Is the sample representative?"
+      },
+      {
+        "id": "bias",
+        "text": "Are there selection/measurement biases?"
+      },
+      {
+        "id": "defeaters",
+        "text": "Are there known exceptions/defeaters?"
+      }
+    ]
+  },
+  "position_to_know": {
+    "name": "Position to Know (Testimony)",
+    "defeasible": true,
+    "critical_questions": [
+      {
+        "id": "access",
+        "text": "Does the source have reliable access to the information?"
+      },
+      {
+        "id": "reliability",
+        "text": "Is the source generally reliable/truthful?"
+      },
+      {
+        "id": "bias",
+        "text": "Does the source have conflicts of interest?"
+      },
+      {
+        "id": "corroboration",
+        "text": "Is there independent corroboration?"
+      }
+    ]
+  },
+  "correlation_to_causation": {
+    "name": "Correlation \u2192 Causation (Causal Inference)",
+    "defeasible": true,
+    "critical_questions": [
+      {
+        "id": "confounders",
+        "text": "Have plausible confounders been controlled for?"
+      },
+      {
+        "id": "mechanism",
+        "text": "Is there a plausible mechanism?"
+      },
+      {
+        "id": "temporality",
+        "text": "Does X precede Y (no reverse causation)?"
+      },
+      {
+        "id": "robustness",
+        "text": "Is the correlation robust across datasets/methods?"
+      }
+    ]
+  },
+  "rules_to_case": {
+    "name": "Rule Application (From Rule to Case)",
+    "defeasible": false,
+    "critical_questions": [
+      {
+        "id": "matching",
+        "text": "Do the facts match the rule conditions?"
+      },
+      {
+        "id": "exceptions",
+        "text": "Are there applicable exceptions to the rule?"
+      },
+      {
+        "id": "conflicts",
+        "text": "Does this rule conflict with a higher-priority rule?"
+      }
+    ]
+  },
+  "definition": {
+    "name": "Argument from Definition",
+    "defeasible": true,
+    "critical_questions": [
+      {
+        "id": "adequacy",
+        "text": "Is the definition adequate and accepted?"
+      },
+      {
+        "id": "fit",
+        "text": "Do the case facts actually fit the definition?"
+      },
+      {
+        "id": "borderline",
+        "text": "Are there borderline cases or vagueness to address?"
+      }
+    ]
+  }
+}
