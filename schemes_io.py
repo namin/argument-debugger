@@ -2,7 +2,7 @@
 from __future__ import annotations
 import json
 from functools import lru_cache
-from typing import Dict, Tuple, Any
+from typing import Dict, Tuple, Any, Optional
 
 DEFAULT_SCHEMES_PATH = "schemes.json"
 
@@ -20,8 +20,8 @@ def load_cq_labels(path: str = DEFAULT_SCHEMES_PATH) -> Dict[str, Tuple[str, str
             continue
         for cq in scheme.get("critical_questions", []):
             cid = cq["id"]
-            title = cq.get("title") or cq.get("label", cid)
-            short = cq.get("short") or cq.get("hint", "")
+            title = cq.get("title") or cid
+            short = cq.get("short") or ""
             if cid not in labels:
                 labels[cid] = (title, short)
     return labels
@@ -49,13 +49,23 @@ def format_cq_extended(cq_id: str, path: str = DEFAULT_SCHEMES_PATH) -> str:
     q = meta.get("question")
     if q:
         parts.append(q)
-    hint = meta.get("hint")
+    hint = meta.get("short")
     if hint:
         parts.append(hint)
     why = meta.get("why_it_matters")
     if why:
         parts.append(f"Why it matters: {why}")
     return " — ".join(parts)
+
+def contextualize(text: str, action: Optional[str] = None, goal: Optional[str] = None) -> str:
+    """Optional: replace {{ACTION}}/{{GOAL}} tokens if authors choose to use templates.
+    This is OFF by default because our v1.2.1 JSON avoids placeholders entirely.
+    """
+    if action:
+        text = text.replace("{ACTION}", action)
+    if goal:
+        text = text.replace("{GOAL}", goal)
+    return text
 
 ALLOWED_BY_RULE_TYPE = {
     "deductive": [
