@@ -790,7 +790,7 @@ def main():
                        help='skip generating repairs')
     parser.add_argument(
         '--cq',
-        default=True,
+        default=False,
         action=argparse.BooleanOptionalAction, # --cq / --no-cq
         help='support critical questions'
     )
