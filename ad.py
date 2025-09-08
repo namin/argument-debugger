@@ -19,13 +19,15 @@ from schemes_io import format_cq_one_liner, format_cq_extended
 _BACKSLASH = "\\\\"
 _QUOTE = '\\"'
 def q(s: Optional[str]) -> str:
-    """
-    Quote a Python string as a Clingo string term.
-    Escapes backslashes and double-quotes.
-    """
     if s is None:
         s = ""
-    return '"' + s.replace("\\", _BACKSLASH).replace('"', _QUOTE) + '"'
+    # Order matters: backslash first
+    s = (s.replace("\\", _BACKSLASH)
+           .replace('"', _QUOTE)
+           .replace("\n", "\\n")
+           .replace("\r", "\\r")
+           .replace("\t", "\\t"))
+    return f'"{s}"'
 
 _ALLOWED_TYPES = {"premise", "intermediate", "conclusion"}
 def clamp_claim_type(t: Optional[str]) -> str:
