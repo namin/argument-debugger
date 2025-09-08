@@ -52,11 +52,6 @@ The Argument Debugger has three major LLM‑assisted steps and one symbolic step
 3. **Harvest answers** present in the text (e.g., explicit “CQ: alternatives — …”) and record which CQs are answered.  
 4. **Analyze in ASP**: build the support graph; flag missing links; and—if desired—**disable** inferences whose conclusions require CQs that remain unanswered.
 
-Two modes balance guidance vs. enforcement:
-
-- **Advice mode** – Missing CQs produce human‑readable advice but do **not** switch off the inference. Best for drafting.  
-- **Enforce mode** – Unanswered CQs **disable** those inferences in the ASP graph (via a `disabled_inference` predicate), which can expose downstream *missing‑link* failures. Best for QA/compliance.
-
 This creates a **tight loop**: the system is specific about *what to add* (CQs), the author adds a line or two to satisfy them, and the graph immediately improves.
 
 ---
@@ -89,7 +84,6 @@ This triage gives busy authors *just enough* guidance, and reviewers can drill d
 - **Scheme assignment** uses the LLM but is *constrained* to a small set of schemes **allowed** per `rule_type` (deductive/inductive/causal/definitional).  
 - The assigner aggregates CQs **per conclusion** and caps to **top‑k**.  
 - **ASP** receives: claims, inferences, equivalences, goal, empirical flags, plus optional `requires_cq`/`answered_cq`.  
-- In **enforce** mode, a rule disables inferences into a conclusion that has *any* required CQ unanswered; otherwise we simply display advisory messages.
 
 ---
 
@@ -102,17 +96,7 @@ This triage gives busy authors *just enough* guidance, and reviewers can drill d
 
 ---
 
-## 9) When to use “enforce”
-
-- **Safety‑critical** or **policy** arguments where compliance with governance/QA is non‑negotiable.  
-- **Procurement** and **grant** decisions where comparative reasoning (alternatives, side‑effects, feasibility) must be explicit.  
-- **Evidence‑based** contexts that require calibration, uncertainty, or replication checks (e.g., causal claims).
-
-In other settings (brainstorming, early drafts), **advice** mode keeps momentum while still nudging toward better arguments.
-
----
-
-## 10) References & suggested reading
+## 9) References & suggested reading
 
 - **Walton, Douglas; Reed, Chris; Macagno, Fabrizio (2008).** *Argumentation Schemes.* Cambridge Univ. Press.  
 - **Toulmin, Stephen (1958).** *The Uses of Argument.* Cambridge Univ. Press.  
@@ -126,6 +110,6 @@ In other settings (brainstorming, early drafts), **advice** mode keeps momentum 
 
 ---
 
-## 11) Summary
+## 10) Summary
 
 Critical Questions give your debugger a **discipline‑agnostic, auditable, and teachable** way to improve arguments. They turn vague advice (“be more rigorous”) into concrete edits (“quantify effect size,” “show alternatives,” “disclose COIs”). With LLMs doing classification and micro‑edits, and ASP enforcing global coherence, you get the best of both worlds: **fast assistance** and **formal assurance**.
