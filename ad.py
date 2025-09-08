@@ -583,9 +583,13 @@ contradiction(A, B) :- contradicts(A, B), claim(A, _), claim(B, _).
 """
         if self.cq:
             program += """
-        missing_cq(To, Q) :- requires_cq(To, Q), not answered_cq(To, Q).
-        #show missing_cq/2.
-        """
+% Treat direct answers as well as answers provided by upstream supporters as satisfying the CQ.
+answered_cq_here(To,Q) :- answered_cq(To,Q).
+answered_cq_here(To,Q) :- answered_cq(From,Q), supports(From, To).
+
+missing_cq(To, Q) :- requires_cq(To, Q), not answered_cq_here(To, Q).
+#show missing_cq/2.
+"""
            
         return program
 
@@ -648,6 +652,7 @@ RULES:
 - Prefer adding *one-liners* that close gaps (warrant statements, short evidence references, CQ answers).
 - Keep the tone neutral and the changes minimal.
 - Output a short bulleted list of added/modified sentences ONLY.
+- Avoid concessions that make the conclusion no longer follow from the edited premises.
 """
         resp = generate_content(self.client, contents=prompt, config=self.config_text)
         text = resp.text.strip()
@@ -719,6 +724,7 @@ class ArgumentDebugger:
         argument = self.parser.parse_argument(argument_text)
         
         self._attach_cq(argument, argument_text)
+        initial_requires = set(getattr(argument, "scheme_requires", []))
 
         self._print_structure(argument)
         
@@ -747,6 +753,9 @@ class ArgumentDebugger:
                 repaired_argument = self.parser.parse_argument(clean_argument)
                 
                 self._attach_cq(repaired_argument, clean_argument)
+                repaired_requires = set(getattr(repaired_argument, "scheme_requires", []))
+                repaired_argument.scheme_requires = [x for x in repaired_requires if x in initial_requires]
+
 
                 self._print_structure(repaired_argument)
                 
