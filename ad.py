@@ -729,6 +729,13 @@ class ArgumentDebugger:
         else:
             print("\n✅ No logical issues found!")
     
+    def _attach_cq(self, argument, argument_text):
+        if self.cq:
+            assigner = SchemeAssigner("schemes.json", topk=self.cq_topk, temperature=0.0)
+            sfacts = assigner.analyze(argument, argument_text, topk=self.cq_topk)
+            argument.scheme_requires = sfacts.requires
+            argument.scheme_answered = sfacts.answered
+
     def debug_argument(self, argument_text: str, apply_repair: bool = True) -> Dict:
         """Complete debugging pipeline"""
         
@@ -736,11 +743,7 @@ class ArgumentDebugger:
         print("\nParsing argument...")
         argument = self.parser.parse_argument(argument_text)
         
-        if self.cq:
-            assigner = SchemeAssigner("schemes.json", topk=self.cq_topk, temperature=0.0)
-            sfacts = assigner.analyze(argument, argument_text, topk=self.cq_topk)
-            argument.scheme_requires = sfacts.requires
-            argument.scheme_answered = sfacts.answered
+        self._attach_cq(argument, argument_text)
 
         self._print_structure(argument)
         
@@ -767,6 +770,8 @@ class ArgumentDebugger:
 
                 print("\nParsing repaired argument...")
                 repaired_argument = self.parser.parse_argument(clean_argument)
+                
+                self._attach_cq(repaired_argument, clean_argument)
                 
                 self._print_structure(repaired_argument)
                 
