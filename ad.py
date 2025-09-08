@@ -30,7 +30,7 @@ def q(s: Optional[str]) -> str:
 _ALLOWED_TYPES = {"premise", "intermediate", "conclusion"}
 def clamp_claim_type(t: Optional[str]) -> str:
     """Ensure claim type is one of the allowed atoms; default to 'premise' if unknown."""
-    t = (t or "").strip()
+    t = (t or "").lower().strip()
     return t if t in _ALLOWED_TYPES else "premise"
 
 # Pydantic models for structured output
@@ -254,7 +254,7 @@ class ASPDebugger:
             )
             if not has_inference_to_goal:
                 # Find premise IDs for description
-                premise_ids = [c.id for c in argument.claims if c.type == "premise"]
+                premise_ids = [c.id for c in argument.claims if clamp_claim_type(c.type) == "premise"]
                 issues.append(Issue(
                     type="missing_link",
                     description=f"No logical connection from premises to conclusion {argument.goal_claim}",
