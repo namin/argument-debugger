@@ -59,14 +59,14 @@ def format_cq_extended(cq_id: str, path: str = DEFAULT_SCHEMES_PATH) -> str:
 
 ALLOWED_BY_RULE_TYPE = {
     "deductive": [
-        "practical_reasoning",
-        "argument_from_consequences",
+        #"practical_reasoning",
+        #"argument_from_consequences",
         "rules_to_case",
         "definition",
         "analogy",
-        "cause_to_effect",
-        "expert_opinion",
-        "position_to_know",
+        #"cause_to_effect",
+        #"expert_opinion",
+        #"position_to_know",
     ],
     "inductive": [
         "example",
@@ -79,6 +79,8 @@ ALLOWED_BY_RULE_TYPE = {
         "cause_to_effect",
         "correlation_to_causation",
         "sign",
+        "practical_reasoning",
+        "argument_from_consequences",
     ],
     "definitional": [
         "definition",
