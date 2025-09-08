@@ -57,16 +57,6 @@ def format_cq_extended(cq_id: str, path: str = DEFAULT_SCHEMES_PATH) -> str:
         parts.append(f"Why it matters: {why}")
     return " — ".join(parts)
 
-def contextualize(text: str, action: Optional[str] = None, goal: Optional[str] = None) -> str:
-    """Optional: replace {{ACTION}}/{{GOAL}} tokens if authors choose to use templates.
-    This is OFF by default because our v1.2.1 JSON avoids placeholders entirely.
-    """
-    if action:
-        text = text.replace("{ACTION}", action)
-    if goal:
-        text = text.replace("{GOAL}", goal)
-    return text
-
 ALLOWED_BY_RULE_TYPE = {
     "deductive": [
         "practical_reasoning",
