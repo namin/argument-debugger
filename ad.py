@@ -794,14 +794,14 @@ def main():
     parser.add_argument('file', nargs='?', default='examples/examples.txt', 
                        help='Input file containing arguments (default: examples/examples.txt)')
     parser.add_argument('--debug', action='store_true', 
-                       help='Show ASP programs and debug output')
+                       help='show ASP programs and debug output')
     parser.add_argument('--no-repairs', action='store_true',
-                       help='Skip generating repairs (faster, useful for testing)')
+                       help='skip generating repairs')
     parser.add_argument(
         '--cq',
         default=True,
         action=argparse.BooleanOptionalAction, # --cq / --no-cq
-        help='Enable critical questions'
+        help='support critical questions'
     )
     parser.add_argument('--cq-topk', type=int, default=2)
     parser.add_argument('--cq-extended', action='store_true')
