@@ -50,7 +50,7 @@ The Argument Debugger has three major LLM‑assisted steps and one symbolic step
 1. **Parse** the raw text into claims, inferences, and types (premise/intermediate/conclusion).  
 2. **Assign a scheme** to each inference and select the **top‑k** most relevant CQs.  
 3. **Harvest answers** present in the text (e.g., explicit “CQ: alternatives — …”) and record which CQs are answered.  
-4. **Analyze in ASP**: build the support graph; flag missing links; and—if desired—**disable** inferences whose conclusions require CQs that remain unanswered.
+4. **Analyze in ASP**: build the support graph; flag missing links; and surface `missing_cq` issues.
 
 This creates a **tight loop**: the system is specific about *what to add* (CQs), the author adds a line or two to satisfy them, and the graph immediately improves.
 
