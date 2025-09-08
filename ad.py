@@ -241,28 +241,6 @@ class ASPDebugger:
     def analyze(self, argument: Argument) -> List[Issue]:
         """Find logical issues in the argument"""
         
-        # First check for structural issues before running ASP
-        issues = []
-        claim_text = {c.id: c.content for c in argument.claims}
-        def _txt(cid: str) -> str:
-            t = claim_text.get(cid, "")
-            return f"{cid}: {t}" if t else cid
-
-        # Check if conclusion has no inferences leading to it
-        if argument.goal_claim:
-            has_inference_to_goal = any(
-                inf.to_claim == argument.goal_claim 
-                for inf in argument.inferences
-            )
-            if not has_inference_to_goal:
-                # Find premise IDs for description
-                premise_ids = [c.id for c in argument.claims if clamp_claim_type(c.type) == "premise"]
-                issues.append(Issue(
-                    type="missing_link",
-                    description=f"No logical connection from premises to conclusion {argument.goal_claim}",
-                    involved_claims=[",".join(premise_ids), argument.goal_claim]
-                ))
-        
         
         # Build ASP program
         asp_program = self._build_asp_program(argument)
@@ -351,13 +329,10 @@ class ASPDebugger:
                 # Only take first model
                 break
         
-        # Combine manual checks with ASP results
-        issues.extend(asp_issues)
-        
         # Deduplicate issues
         seen = set()
         unique_issues = []
-        for issue in issues:
+        for issue in asp_issues:
             key = (issue.type, tuple(sorted(issue.involved_claims)))
             if key not in seen:
                 seen.add(key)
@@ -772,7 +747,7 @@ class ArgumentDebugger:
                 repaired_argument = self.parser.parse_argument(clean_argument)
                 
                 self._attach_cq(repaired_argument, clean_argument)
-                
+
                 self._print_structure(repaired_argument)
                 
                 # 2. Analyze for issues
