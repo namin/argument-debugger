@@ -1,8 +1,6 @@
 # Critical Questions in the Argument Debugger
 *A rationale, brief history, and implementation notes*
 
-**Last updated:** 2025‑09‑07
-
 ---
 
 ## 1) What are “Critical Questions” (CQs)?
@@ -66,19 +64,8 @@ This creates a **tight loop**: the system is specific about *what to add* (CQs),
 
 ---
 
-## 6) UX: one‑liners, extended lines, and “Action”
 
-We provide two concise renderings plus a targeted “Action” line:
-
-- **One‑liner**: `Mechanism — Show how A leads to G; cite outcome evidence.`  
-- **Extended**: `Mechanism — What process links cause to effect? — Explain the pathway… — Why it matters: …`  
-- **Action (first step)**: `Action: Summarize the pathway A→M→G and cite one evaluation.`
-
-This triage gives busy authors *just enough* guidance, and reviewers can drill down into the richer metadata (e.g., pitfalls, answer templates) when needed.
-
----
-
-## 7) Implementation sketch
+## 6) Implementation sketch
 
 - **LLM** produces structured `ArgumentStructure` (claims, inferences, types, etc.).  
 - **Scheme assignment** uses the LLM but is *constrained* to a small set of schemes **allowed** per `rule_type` (deductive/inductive/causal/definitional).  
@@ -87,7 +74,7 @@ This triage gives busy authors *just enough* guidance, and reviewers can drill d
 
 ---
 
-## 8) Relationship to broader literature
+## 7) Relationship to broader literature
 
 - **Argumentation schemes** mirror classical **topoi** and legal **canons/tests** (e.g., “apply rule to case,” “weigh alternatives,” “check exceptions”).  
 - **CQs = defeaters** conceptually: they describe ways an inference can fail unless countered.  
@@ -96,7 +83,7 @@ This triage gives busy authors *just enough* guidance, and reviewers can drill d
 
 ---
 
-## 9) References & suggested reading
+## 8) References & suggested reading
 
 - **Walton, Douglas; Reed, Chris; Macagno, Fabrizio (2008).** *Argumentation Schemes.* Cambridge Univ. Press.  
 - **Toulmin, Stephen (1958).** *The Uses of Argument.* Cambridge Univ. Press.  
@@ -110,6 +97,6 @@ This triage gives busy authors *just enough* guidance, and reviewers can drill d
 
 ---
 
-## 10) Summary
+## 9) Summary
 
 Critical Questions give your debugger a **discipline‑agnostic, auditable, and teachable** way to improve arguments. They turn vague advice (“be more rigorous”) into concrete edits (“quantify effect size,” “show alternatives,” “disclose COIs”). With LLMs doing classification and micro‑edits, and ASP enforcing global coherence, you get the best of both worlds: **fast assistance** and **formal assurance**.
