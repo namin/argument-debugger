@@ -60,8 +60,8 @@ def format_cq_extended(cq_id: str, path: str = DEFAULT_SCHEMES_PATH) -> str:
 ALLOWED_BY_RULE_TYPE = {
     "deductive": [
         "rules_to_case",
-        "definition",
         "analogy",
+        "definition",
     ],
     "inductive": [
         "example",
