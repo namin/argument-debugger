@@ -11,22 +11,28 @@ from google.genai import types
 import os
 from pydantic import BaseModel, Field
 
+from llm import init_llm_client, generate_content
+from scheme_layer import SchemeAssigner, SchemeFacts
+from schemes_io import format_cq_one_liner, format_cq_extended
+
 # Safe quoting for ASP emission
 _BACKSLASH = "\\\\"
 _QUOTE = '\\"'
 def q(s: Optional[str]) -> str:
-    """
-    Quote a Python string as a Clingo string term.
-    Escapes backslashes and double-quotes.
-    """
     if s is None:
         s = ""
-    return '"' + s.replace("\\", _BACKSLASH).replace('"', _QUOTE) + '"'
+    # Order matters: backslash first
+    s = (s.replace("\\", _BACKSLASH)
+           .replace('"', _QUOTE)
+           .replace("\n", "\\n")
+           .replace("\r", "\\r")
+           .replace("\t", "\\t"))
+    return f'"{s}"'
 
 _ALLOWED_TYPES = {"premise", "intermediate", "conclusion"}
 def clamp_claim_type(t: Optional[str]) -> str:
     """Ensure claim type is one of the allowed atoms; default to 'premise' if unknown."""
-    t = (t or "").strip()
+    t = (t or "").lower().strip()
     return t if t in _ALLOWED_TYPES else "premise"
 
 # Pydantic models for structured output
@@ -96,14 +102,14 @@ class Argument:
     claims: List[Claim]
     inferences: List[Inference]
     goal_claim: Optional[str] = None
+    scheme_requires: List[Tuple[str, str]] = field(default_factory=list)  # (to_claim, cq_id)
+    scheme_answered: List[Tuple[str, str]] = field(default_factory=list)  # (to_claim, cq_id)
 
 @dataclass
 class Issue:
     type: str  # missing_link, unsupported_premise, contradiction, circular, false_dichotomy, slippery_slope
     description: str
     involved_claims: List[str]
-
-from llm import init_llm_client, generate_content
 
 class ArgumentParser:
     """Uses language model to parse natural language arguments into formal structure"""
@@ -226,29 +232,14 @@ class ArgumentParser:
 class ASPDebugger:
     """Uses ASP to analyze argument structure and find issues"""
     
-    def __init__(self, debug: bool = False):
+    def __init__(self, debug: bool = False, cq: bool = False, cq_topk: int = 2, cq_extended: bool = False):
         self.debug = debug
-    
+        self.cq = cq
+        self.cq_topk = cq_topk
+        self.cq_extended = cq_extended
+
     def analyze(self, argument: Argument) -> List[Issue]:
         """Find logical issues in the argument"""
-        
-        # First check for structural issues before running ASP
-        issues = []
-        
-        # Check if conclusion has no inferences leading to it
-        if argument.goal_claim:
-            has_inference_to_goal = any(
-                inf.to_claim == argument.goal_claim 
-                for inf in argument.inferences
-            )
-            if not has_inference_to_goal:
-                # Find premise IDs for description
-                premise_ids = [c.id for c in argument.claims if c.type == "premise"]
-                issues.append(Issue(
-                    type="missing_link",
-                    description=f"No logical connection from premises to conclusion {argument.goal_claim}",
-                    involved_claims=[",".join(premise_ids), argument.goal_claim]
-                ))
         
         
         # Build ASP program
@@ -265,7 +256,7 @@ class ASPDebugger:
         control.add("base", [], asp_program)
         control.ground([("base", [])])
         
-        asp_issues = []
+        issues = []
         with control.solve(yield_=True) as handle:
             for model in handle:
                 if self.debug:
@@ -275,7 +266,7 @@ class ASPDebugger:
                     if atom.name == "missing_link":
                         from_claims = str(atom.arguments[0]).strip('"')
                         to_claim = str(atom.arguments[1]).strip('"')
-                        asp_issues.append(Issue(
+                        issues.append(Issue(
                             type="missing_link",
                             description=f"No clear logical connection to reach {to_claim}",
                             involved_claims=[from_claims, to_claim]
@@ -283,7 +274,7 @@ class ASPDebugger:
                     
                     elif atom.name == "unsupported_premise":
                         claim_id = str(atom.arguments[0]).strip('"')
-                        asp_issues.append(Issue(
+                        issues.append(Issue(
                             type="unsupported_premise",
                             description=f"Premise {claim_id} needs supporting evidence",
                             involved_claims=[claim_id]
@@ -292,7 +283,7 @@ class ASPDebugger:
                     elif atom.name == "circular_reasoning":
                         claim_id = str(atom.arguments[0]).strip('"')
                         if not any(i.type == "circular" for i in issues):
-                            asp_issues.append(Issue(
+                            issues.append(Issue(
                                 type="circular",
                                 description=f"Circular reasoning detected involving {claim_id}",
                                 involved_claims=[claim_id]
@@ -300,7 +291,7 @@ class ASPDebugger:
                     
                     elif atom.name == "false_dichotomy":
                         claim_id = str(atom.arguments[0]).strip('"')
-                        asp_issues.append(Issue(
+                        issues.append(Issue(
                             type="false_dichotomy",
                             description=f"False dichotomy in {claim_id}: presents only two options when more may exist",
                             involved_claims=[claim_id]
@@ -308,7 +299,7 @@ class ASPDebugger:
                     
                     elif atom.name == "slippery_slope":
                         claim_id = str(atom.arguments[0]).strip('"')
-                        asp_issues.append(Issue(
+                        issues.append(Issue(
                             type="slippery_slope",
                             description=f"Slippery slope in {claim_id}: argues that one action leads to extreme consequences without justification",
                             involved_claims=[claim_id]
@@ -319,17 +310,24 @@ class ASPDebugger:
                         claim2 = str(atom.arguments[1]).strip('"')
                         # Only add once (avoid duplicates from both directions)
                         if claim1 < claim2:
-                            asp_issues.append(Issue(
+                            issues.append(Issue(
                                 type="contradiction",
                                 description=f"Claims {claim1} and {claim2} contradict each other",
                                 involved_claims=[claim1, claim2]
                             ))
+
+                    elif atom.name == "missing_cq":
+                        to_claim = str(atom.arguments[0]).strip('"')
+                        cq_id = str(atom.arguments[1]).strip('"')
+                        text = format_cq_extended(cq_id) if self.cq_extended else format_cq_one_liner(cq_id)
+                        issues.append(Issue(
+                            type="missing_cq",
+                            description=f"{to_claim}: {text}",
+                            involved_claims=[to_claim, cq_id]
+                        ))
                 
                 # Only take first model
                 break
-        
-        # Combine manual checks with ASP results
-        issues.extend(asp_issues)
         
         # Deduplicate issues
         seen = set()
@@ -420,6 +418,15 @@ class ASPDebugger:
                     if self.debug:
                         print(f"Marked {claim1} and {claim2} as contradictory")
         
+        if self.cq:
+            if getattr(argument, "scheme_requires", None):
+                program += "\n% Scheme requirements (generated by LLM)\n"
+                for (to_claim, cq) in argument.scheme_requires:
+                    program += f"requires_cq({q(to_claim)},{q(cq)}).\n"
+            if getattr(argument, "scheme_answered", None):
+                for (to_claim, cq) in argument.scheme_answered:
+                    program += f"answered_cq({q(to_claim)},{q(cq)}).\n"
+        
         program += """
 % =========================
 % Argument Analysis (ASP)
@@ -441,6 +448,7 @@ class ASPDebugger:
 % -------------------------
 % Support graph (closure)
 % -------------------------
+% Base support edges
 supports(X, Y) :- inference(X, Y).
 supports(X, Z) :- supports(X, Y), inference(Y, Z).
 
@@ -572,155 +580,117 @@ contradiction(A, B) :- contradicts(A, B), claim(A, _), claim(B, _).
 #show false_dichotomy/1.
 #show slippery_slope/1.
 #show contradiction/2.
-        """
-        
+"""
+        if self.cq:
+            program += """
+% Treat direct answers as well as answers provided by upstream supporters as satisfying the CQ.
+answered_cq_here(To,Q) :- answered_cq(To,Q).
+answered_cq_here(To,Q) :- answered_cq(From,Q), supports(From, To).
+
+missing_cq(To, Q) :- requires_cq(To, Q), not answered_cq_here(To, Q).
+#show missing_cq/2.
+"""
+           
         return program
 
-# RepairGenerator class would remain the same as it doesn't interact with Gemini directly
-# ArgumentDebugger class would remain the same
-
 class RepairGenerator:
-    """Generates repairs for identified issues"""
-    
     def __init__(self, debug: bool = False):
         self.client = init_llm_client()
         self.debug = debug
-        self.config = types.GenerateContentConfig(
-            temperature=0.1,
+        self.config_text = types.GenerateContentConfig(
+            temperature=0.2,
             thinking_config=types.ThinkingConfig(thinking_budget=0)
         )
-    
-    def generate_repair(self, argument_text: str, argument: Argument, issues: List[Issue]) -> Tuple[Optional[str], Optional[str]]:
-        """Generate repair text and cleaned argument"""
-        
+        self.config_json = types.GenerateContentConfig(
+            temperature=0.0,
+            response_mime_type="application/json",
+            thinking_config=types.ThinkingConfig(thinking_budget=0)
+        )
+
+    def generate_repair(self, argument_text: str, argument, issues: List) -> Tuple[Optional[str], Optional[str]]:
         if not issues:
             return None, None
-        
-        # Generate repair text with commentary
-        repair_commentary = self._generate_repair_text(argument, issues)
-        if not repair_commentary:
+        commentary = self._generate_repair_text(argument_text, argument, issues)
+        if not commentary:
             return None, None
-        
-        # Generate a clean rewritten argument
-        clean_argument = self._generate_clean_argument(argument_text, repair_commentary)
-        
-        return repair_commentary, clean_argument
-    
-    def _generate_repair_text(self, argument: Argument, issues: List[Issue]) -> Optional[str]:
-        """Generate text that addresses the issues"""
-        
-        # Build a simple list of what needs fixing
-        issue_descriptions = []
-        for issue in issues:
-            if issue.type == "missing_link":
-                if len(issue.involved_claims) >= 2:
-                    to_claim = issue.involved_claims[1]
-                    to_content = self._get_claim_content(argument, to_claim)
-                    issue_descriptions.append(f"- Bridge the logical gap to: {to_content}")
-            elif issue.type == "unsupported_premise":
-                claim_id = issue.involved_claims[0]
-                claim_content = self._get_claim_content(argument, claim_id)
-                issue_descriptions.append(f"- Provide evidence for: {claim_content}")
-            elif issue.type == "circular":
-                issue_descriptions.append(f"- Break circular reasoning with independent support")
-            elif issue.type == "contradiction":
-                if len(issue.involved_claims) >= 2:
-                    claim1 = issue.involved_claims[0]
-                    claim2 = issue.involved_claims[1]
-                    content1 = self._get_claim_content(argument, claim1)
-                    content2 = self._get_claim_content(argument, claim2)
-                    issue_descriptions.append(f"- Resolve contradiction between: '{content1}' and '{content2}'")
-            elif issue.type == "false_dichotomy":
-                claim_id = issue.involved_claims[0]
-                claim_content = self._get_claim_content(argument, claim_id)
-                issue_descriptions.append(f"- Address the false dichotomy in: {claim_content}")
-            elif issue.type == "slippery_slope":
-                claim_id = issue.involved_claims[0]
-                claim_content = self._get_claim_content(argument, claim_id)
-                issue_descriptions.append(f"- Justify the causal chain in: {claim_content}")
-        
-        issues_text = "\n".join(issue_descriptions)
-        
-        prompt = f"""
-Add text to this argument to address these issues:
-{issues_text}
+        clean = self._generate_clean_argument(argument_text, commentary)
+        return commentary, clean
 
-Write additional statements that resolve the issues. Be concise and direct.
+    def _generate_repair_text(self, argument_text: str, argument, issues: List) -> Optional[str]:
+        bullets = []
+        for it in issues:
+            if it.type == "missing_link":
+                to_claim = it.involved_claims[-1] if it.involved_claims else ""
+                bullets.append(f"- Add an explicit warrant/bridge into: {to_claim}")
+            elif it.type == "unsupported_premise":
+                cid = it.involved_claims[0]
+                bullets.append(f"- Provide evidence for premise: {cid}")
+            elif it.type == "missing_cq":
+                cq = it.involved_claims[-1]
+                bullets.append(f"- Answer the critical question: {cq}")
+            elif it.type == "false_dichotomy":
+                bullets.append(f"- Reframe the dichotomy (acknowledge more than two options)")
+            elif it.type == "slippery_slope":
+                bullets.append(f"- Justify the causal chain or weaken to a guarded prediction")
+            elif it.type == "contradiction":
+                bullets.append(f"- Resolve the contradiction (drop or qualify one claim)")
+            elif it.type == "circular":
+                bullets.append(f"- Break the circularity with independent support")
+
+        prompt = f"""
+You are assisting with a light-touch repair of the following argument.
+ARGUMENT (verbatim):
+---
+{argument_text}
+---
+
+Issues to address (each must be resolved by adding or tweaking a SMALL number of sentences):
+{chr(10).join(bullets)}
+
+RULES:
+- Do NOT change the final conclusion unless instructed (keep the same endpoint).
+- Prefer adding *one-liners* that close gaps (warrant statements, short evidence references, CQ answers).
+- Keep the tone neutral and the changes minimal.
+- Output a short bulleted list of added/modified sentences ONLY.
+- Avoid concessions that make the conclusion no longer follow from the edited premises.
 """
-        
-        response = generate_content(
-            self.client,
-            contents=prompt,
-            config=self.config
-        )
-        
-        repair_text = response.text.strip()
-        
-        if not repair_text:
-            return None
-        
-        return repair_text
-    
+        resp = generate_content(self.client, contents=prompt, config=self.config_text)
+        text = resp.text.strip()
+        return text or None
+
     def _generate_clean_argument(self, original_text: str, repair_commentary: str) -> str:
-        """Generate a clean, integrated argument from original and repair"""
-        
         prompt = f"""
-Given this original argument:
+Integrate the following minimal changes into the original argument so that it addresses the issues,
+but keep the original conclusion if present.
+
+ORIGINAL:
+---
 {original_text}
+---
 
-And this repair commentary:
+CHANGES (bulleted list of sentences to add or tweak):
+---
 {repair_commentary}
+---
 
-Your task is to generate a clean, integrated argument that maintains the original conclusion.
-
-IMPORTANT: If the repair commentary contradicts or refutes the original premise, you should:
-1. Acknowledge the weakness of the original reasoning
-2. Find an ALTERNATIVE line of reasoning that could support the same conclusion
-3. Use phrases like "While [original premise] may be flawed, one could argue..." or "Setting aside [problematic reasoning], another consideration is..."
-4. Focus on different evidence or reasoning that doesn't rely on the refuted premise
-
-For example:
-- If the original uses a slippery slope that's been refuted, find a different reason to support the conclusion
-- If the original uses ad hominem that's been shown invalid, find substantive reasons for the conclusion
-- If evidence contradicts a premise, acknowledge this and pivot to different supporting points
-
-Generate a clean argument that:
-1. Maintains the ORIGINAL CONCLUSION
-2. Addresses weaknesses identified in the repair
-3. Uses alternative reasoning if the original reasoning was refuted
-4. Remains intellectually honest by acknowledging when shifting to different arguments
-5. Includes at least one explicit bridge sentence that links the evidence to the conclusion
-6. Ends with the original conclusion as the final sentence
-
-Write ONLY the argument itself as a series of clear statements.
-Do not include any headers, explanations, or formatting.
-Each statement should be a complete sentence.
+OUTPUT RULES:
+- Produce only the final argument as short, clear sentences (no headers).
+- Include at least one explicit sentence that bridges evidence/warrants to the conclusion.
+- If a claim is empirical, briefly hint at a source (e.g., '… per [study/record]').
 """
-        
-        response = generate_content(
-            self.client,
-            contents=prompt,
-            config=self.config
-        )
-        
-        return response.text.strip()
-    
-    def _get_claim_content(self, argument: Argument, claim_id: str) -> str:
-        """Get claim content by ID"""
-        for claim in argument.claims:
-            if claim.id == claim_id:
-                return claim.content
-        return ""
-    
+        resp = generate_content(self.client, contents=prompt, config=self.config_text)
+        return resp.text.strip()   
 
 class ArgumentDebugger:
     """Main system that combines all components"""
     
-    def __init__(self, debug: bool = False):
+    def __init__(self, debug: bool = False, cq: bool = False, cq_topk: int = 2, cq_extended: bool = False):
         self.parser = ArgumentParser()
-        self.analyzer = ASPDebugger(debug=debug)
+        self.analyzer = ASPDebugger(debug=debug, cq=cq, cq_topk=cq_topk, cq_extended=cq_extended)
         self.repairer = RepairGenerator(debug=debug)
         self.debug = debug
+        self.cq = cq
+        self.cq_topk = cq_topk
     
     def _print_structure(self, argument: Argument, label: str = "Parsed structure"):
         """Helper to print argument structure"""
@@ -739,6 +709,13 @@ class ArgumentDebugger:
         else:
             print("\n✅ No logical issues found!")
     
+    def _attach_cq(self, argument, argument_text):
+        if self.cq:
+            assigner = SchemeAssigner("schemes.json", topk=self.cq_topk, temperature=0.0)
+            sfacts = assigner.analyze(argument, argument_text, topk=self.cq_topk)
+            argument.scheme_requires = sfacts.requires
+            argument.scheme_answered = sfacts.answered
+
     def debug_argument(self, argument_text: str, apply_repair: bool = True) -> Dict:
         """Complete debugging pipeline"""
         
@@ -746,6 +723,9 @@ class ArgumentDebugger:
         print("\nParsing argument...")
         argument = self.parser.parse_argument(argument_text)
         
+        self._attach_cq(argument, argument_text)
+        initial_requires = set(getattr(argument, "scheme_requires", []))
+
         self._print_structure(argument)
         
         # 2. Analyze for issues
@@ -772,6 +752,11 @@ class ArgumentDebugger:
                 print("\nParsing repaired argument...")
                 repaired_argument = self.parser.parse_argument(clean_argument)
                 
+                self._attach_cq(repaired_argument, clean_argument)
+                repaired_requires = set(getattr(repaired_argument, "scheme_requires", []))
+                repaired_argument.scheme_requires = [x for x in repaired_requires if x in initial_requires]
+
+
                 self._print_structure(repaired_argument)
                 
                 # 2. Analyze for issues
@@ -800,9 +785,17 @@ def main():
     parser.add_argument('file', nargs='?', default='examples/examples.txt', 
                        help='Input file containing arguments (default: examples/examples.txt)')
     parser.add_argument('--debug', action='store_true', 
-                       help='Show ASP programs and debug output')
+                       help='show ASP programs and debug output')
     parser.add_argument('--no-repairs', action='store_true',
-                       help='Skip generating repairs (faster, useful for testing)')
+                       help='skip generating repairs')
+    parser.add_argument(
+        '--cq',
+        default=False,
+        action=argparse.BooleanOptionalAction, # --cq / --no-cq
+        help='support critical questions'
+    )
+    parser.add_argument('--cq-topk', type=int, default=2)
+    parser.add_argument('--cq-extended', action='store_true')
     
     args = parser.parse_args()
     
@@ -823,8 +816,7 @@ def main():
         print(f"Error reading file: {e}")
         return
     
-    # Initialize debugger
-    debugger = ArgumentDebugger(debug=args.debug)
+    debugger = ArgumentDebugger(debug=args.debug, cq=args.cq, cq_topk=args.cq_topk, cq_extended=args.cq_extended)
 
     for i, arg_text in enumerate(examples):
         print(f"\n## EXAMPLE {i+1}")
@@ -832,7 +824,6 @@ def main():
         
         try:
             result = debugger.debug_argument(arg_text, apply_repair=not args.no_repairs)
-        
         except Exception as e:
             print(f"Error: {e}")
             import traceback
