@@ -256,7 +256,7 @@ class ASPDebugger:
         control.add("base", [], asp_program)
         control.ground([("base", [])])
         
-        asp_issues = []
+        issues = []
         with control.solve(yield_=True) as handle:
             for model in handle:
                 if self.debug:
@@ -266,7 +266,7 @@ class ASPDebugger:
                     if atom.name == "missing_link":
                         from_claims = str(atom.arguments[0]).strip('"')
                         to_claim = str(atom.arguments[1]).strip('"')
-                        asp_issues.append(Issue(
+                        issues.append(Issue(
                             type="missing_link",
                             description=f"No clear logical connection to reach {to_claim}",
                             involved_claims=[from_claims, to_claim]
@@ -274,7 +274,7 @@ class ASPDebugger:
                     
                     elif atom.name == "unsupported_premise":
                         claim_id = str(atom.arguments[0]).strip('"')
-                        asp_issues.append(Issue(
+                        issues.append(Issue(
                             type="unsupported_premise",
                             description=f"Premise {claim_id} needs supporting evidence",
                             involved_claims=[claim_id]
@@ -283,7 +283,7 @@ class ASPDebugger:
                     elif atom.name == "circular_reasoning":
                         claim_id = str(atom.arguments[0]).strip('"')
                         if not any(i.type == "circular" for i in issues):
-                            asp_issues.append(Issue(
+                            issues.append(Issue(
                                 type="circular",
                                 description=f"Circular reasoning detected involving {claim_id}",
                                 involved_claims=[claim_id]
@@ -291,7 +291,7 @@ class ASPDebugger:
                     
                     elif atom.name == "false_dichotomy":
                         claim_id = str(atom.arguments[0]).strip('"')
-                        asp_issues.append(Issue(
+                        issues.append(Issue(
                             type="false_dichotomy",
                             description=f"False dichotomy in {claim_id}: presents only two options when more may exist",
                             involved_claims=[claim_id]
@@ -299,7 +299,7 @@ class ASPDebugger:
                     
                     elif atom.name == "slippery_slope":
                         claim_id = str(atom.arguments[0]).strip('"')
-                        asp_issues.append(Issue(
+                        issues.append(Issue(
                             type="slippery_slope",
                             description=f"Slippery slope in {claim_id}: argues that one action leads to extreme consequences without justification",
                             involved_claims=[claim_id]
@@ -310,7 +310,7 @@ class ASPDebugger:
                         claim2 = str(atom.arguments[1]).strip('"')
                         # Only add once (avoid duplicates from both directions)
                         if claim1 < claim2:
-                            asp_issues.append(Issue(
+                            issues.append(Issue(
                                 type="contradiction",
                                 description=f"Claims {claim1} and {claim2} contradict each other",
                                 involved_claims=[claim1, claim2]
@@ -320,7 +320,7 @@ class ASPDebugger:
                         to_claim = str(atom.arguments[0]).strip('"')
                         cq_id = str(atom.arguments[1]).strip('"')
                         text = format_cq_extended(cq_id) if self.cq_extended else format_cq_one_liner(cq_id)
-                        asp_issues.append(Issue(
+                        issues.append(Issue(
                             type="missing_cq",
                             description=f"{to_claim}: {text}",
                             involved_claims=[to_claim, cq_id]
@@ -332,7 +332,7 @@ class ASPDebugger:
         # Deduplicate issues
         seen = set()
         unique_issues = []
-        for issue in asp_issues:
+        for issue in issues:
             key = (issue.type, tuple(sorted(issue.involved_claims)))
             if key not in seen:
                 seen.add(key)
