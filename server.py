@@ -32,6 +32,7 @@ class UnifiedRequest(BaseModel):
     target: Optional[str] = None
     winners: str = "stable"
     repair: bool = False
+    cqs: bool = False
     api_key: Optional[str] = None  # Add API key to request body
 
 @app.get("/api/health")
@@ -57,6 +58,7 @@ def api_unified(req: UnifiedRequest, x_api_key: Optional[str] = Header(None)):
             target=req.target,
             winners_semantics=req.winners,
             repair_stance=req.repair,
+            cqs=req.cqs,
             filename="session",
         )
         return result
