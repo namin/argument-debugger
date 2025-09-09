@@ -323,7 +323,7 @@ class ASPDebugger:
                         issues.append(Issue(
                             type="missing_cq",
                             description=f"{to_claim}: {text}",
-                            involved_claims=[to_claim, cq_id]
+                            involved_claims=[to_claim]
                         ))
                 
                 # Only take first model

@@ -206,12 +206,18 @@ def why_not_target(target: Optional[str], ids: List[str], id2atom: Dict[str,str]
 # ad.py analysis
 # -------------------------
 
-def analyze_stance_with_ad(text: str, want_repair: bool = False) -> Dict[str, Any]:
+def analyze_stance_with_ad(text: str, want_repair: bool = False, cqs: bool = False) -> Dict[str, Any]:
     if not HAVE_AD:
         return {"error": "ad.py not available"}
     parser = AD.ArgumentParser()
     argument = parser.parse_argument(text)
-    issues = AD.ASPDebugger(debug=False).analyze(argument)
+    
+    # Attach CQ analysis if enabled
+    if cqs:
+        debugger = AD.ArgumentDebugger(debug=False, cq=cqs)
+        debugger._attach_cq(argument, text)
+    
+    issues = AD.ASPDebugger(debug=False, cq=cqs).analyze(argument)
     out = {
         "claims": [{"id": c.id, "type": c.type, "content": c.content} for c in argument.claims],
         "inferences": [{"from": i.from_claims, "to": i.to_claim, "rule_type": i.rule_type} for i in argument.inferences],
@@ -317,7 +323,7 @@ def make_af_markdown(filename: str,
 
 def make_ad_markdown(ids: List[str], id2text: Dict[str,str], id2atom: Dict[str,str],
                      sem_winners: List[Set[str]], atom2id: Dict[str,str],
-                     repair: bool = False) -> str:
+                     repair: bool = False, cqs: bool = False) -> str:
     if not sem_winners:
         return "_No winning sets under this semantics._"
     lines = []
@@ -330,7 +336,7 @@ def make_ad_markdown(ids: List[str], id2text: Dict[str,str], id2atom: Dict[str,s
         stance_text = "\n\n".join([(id2text.get(mid) or "").strip() for mid in mids if (id2text.get(mid) or "").strip()]).strip()
         if not stance_text:
             lines.append("_empty stance text_"); lines.append(""); continue
-        ad = analyze_stance_with_ad(stance_text, want_repair=repair) if HAVE_AD else {"error":"ad.py not available"}
+        ad = analyze_stance_with_ad(stance_text, want_repair=repair, cqs=cqs) if HAVE_AD else {"error":"ad.py not available"}
         if ad.get("error"):
             lines.append(f"_ad.py analysis skipped: {ad['error']}_"); lines.append(""); continue
         claims = ad.get("claims") or []
@@ -397,9 +403,9 @@ def make_unified_markdown(filename: str,
                           why: Dict[str, Any],
                           winners_sets: List[Set[str]],
                           winners_name: str,
-                          repair: bool) -> str:
+                          repair: bool, cqs: bool = False) -> str:
     af_md = make_af_markdown(filename, ids, id2text, id2atom, attacks_tagged, id_attacks, sem, depth, pref_cards, why)
-    ad_md = make_ad_markdown(ids, id2text, id2atom, winners_sets, atom2id, repair=repair)
+    ad_md = make_ad_markdown(ids, id2text, id2atom, winners_sets, atom2id, repair=repair, cqs=cqs)
     parts = [
         "# Unified AF + ad.py Report",
         "",
@@ -428,6 +434,7 @@ def generate_unified_report(
     max_pref_cards: int = 4,
     winners_semantics: str = "stable",
     repair_stance: bool = False,
+    cqs: bool = False,
     filename: str = "session",
 ) -> Dict[str, Any]:
     ids, id2text, atoms, attacks, id2atom, atom2id, meta = build_af_from_text(
@@ -452,7 +459,8 @@ def generate_unified_report(
         ids=ids, id2text=id2text, id2atom=id2atom, atom2id=atom2id,
         attacks_tagged=atk_by_tag, id_attacks=id_att,
         sem=sem, depth=depth, pref_cards=cards, why=why,
-        winners_sets=win_sets, winners_name=winners_semantics, repair=repair_stance
+        winners_sets=win_sets, winners_name=winners_semantics, repair=repair_stance,
+        cqs=cqs
     )
     return {
         "markdown": unified_md,

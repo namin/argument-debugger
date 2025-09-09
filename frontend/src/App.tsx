@@ -18,6 +18,7 @@ export default function App() {
   const [useLLM, setUseLLM] = useState(false);
   const [winners, setWinners] = useState<"preferred"|"stable"|"grounded"|"complete"|"stage"|"semi-stable">("stable");
   const [repair, setRepair] = useState(false);
+  const [cqs, setCqs] = useState(false);
   const [target, setTarget] = useState<string>("");
   const [apiKey, setApiKey] = useState<string>("");
 
@@ -50,7 +51,7 @@ export default function App() {
         headers,
         body: JSON.stringify({
           text, relation, use_llm: useLLM,
-          winners, repair, target: target || null,
+          winners, repair, cqs, target: target || null,
           api_key: apiKey.trim() || null
         })
       });
@@ -133,6 +134,7 @@ export default function App() {
                 </select>
               </label>
               <label><input type="checkbox" checked={repair} onChange={e=>setRepair(e.target.checked)} /> repair stance</label>
+              <label><input type="checkbox" checked={cqs} onChange={e=>setCqs(e.target.checked)} /> CQs</label>
               <label>Target:&nbsp;
                 <select value={target} onChange={(e)=>setTarget(e.target.value)}>
                   <option value="">(none)</option>
