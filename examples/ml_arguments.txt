@@ -1,0 +1,8 @@
+All birds fly.
+Tweety is a bird.
+Therefore, Tweety flies.
+
+Counterargument:
+Penguins are birds that do not fly.
+Tweety is a penguin.
+Therefore, Tweety does not fly.
