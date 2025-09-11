@@ -697,149 +697,94 @@ def canonicalize_inference_patterns(argument: LogicalArgument) -> LogicalArgumen
                     inf.pattern = "universal_instantiation"  # canonical label
     return argument
 
-# ============================================================================
-# FOR E PROVER BACKEND
-# ============================================================================
+# =============================================================================
+# FOL → TPTP/FOF translation (closed) and selection of premises/goal
+# =============================================================================
 
-# Treat these as variable names if they appear as terms and are not bound.
 _DEFAULT_VAR_TOKENS = {"x", "y", "z", "u", "v", "w"}
 
 def _tptp_sym(s: str, *, is_var: bool = False) -> str:
-    """Sanitize a symbol for TPTP: letters/digits/underscore; variables must start uppercase,
-    functors/predicates/constants lowercase."""
-    s = re.sub(r"[^A-Za-z0-9_]", "_", s.strip())
-    if not s:
-        s = "x" if is_var else "c"
+    s = re.sub(r"[^A-Za-z0-9_]", "_", s.strip() or ("X" if is_var else "c"))
     if is_var:
-        if not s[0].isupper():
-            s = s[0].upper() + s[1:]
-    else:
-        if not s[0].islower():
-            s = s[0].lower() + s[1:]
-    return s
+        return (s[0].upper() + s[1:]) if not s[0].isupper() else s
+    return (s[0].lower() + s[1:]) if not s[0].islower() else s
 
-def _collect_free_vars(formula: FOLFormula, bound: set[str] | None = None) -> set[str]:
-    """Collect variable tokens that occur free in our internal FOL."""
-    if bound is None:
-        bound = set()
-    t = formula.type
-    if t == "atom" and formula.atom:
+def _collect_free_vars(f: FOLFormula, bound: set[str] | None = None) -> set[str]:
+    if bound is None: bound = set()
+    t = f.type
+    if t == "atom" and f.atom:
         vs = set()
-        for term in formula.atom.terms:
-            if term in bound or term.lower() not in _DEFAULT_VAR_TOKENS:
-                continue
-            vs.add(term)
+        for term in f.atom.terms:
+            if term not in bound and term.lower() in _DEFAULT_VAR_TOKENS:
+                vs.add(term)
         return vs
-    if t == "not" and formula.left:
-        return _collect_free_vars(formula.left, bound)
-    if t in {"and", "or", "implies", "iff"} and formula.left and formula.right:
-        return _collect_free_vars(formula.left, bound) | _collect_free_vars(formula.right, bound)
-    if t in {"forall", "exists"} and formula.variable and formula.body:
-        return _collect_free_vars(formula.body, bound | {formula.variable})
+    if t == "not" and f.left: return _collect_free_vars(f.left, bound)
+    if t in {"and","or","implies","iff"} and f.left and f.right:
+        return _collect_free_vars(f.left, bound) | _collect_free_vars(f.right, bound)
+    if t in {"forall","exists"} and f.variable and f.body:
+        return _collect_free_vars(f.body, bound | {f.variable})
     return set()
 
-def _fol_to_fof(formula: FOLFormula, varmap: dict[str, str] | None = None) -> str:
-    """Translate our FOLFormula -> TPTP FOF (no top-level closing)."""
-    if varmap is None:
-        varmap = {}
-
-    t = formula.type
-    if t == "atom" and formula.atom:
-        p = _tptp_sym(formula.atom.predicate, is_var=False)
-        if not formula.atom.terms:
-            return p  # 0-arity predicate
+def _fol_to_fof(f: FOLFormula, varmap: dict[str,str] | None = None) -> str:
+    if varmap is None: varmap = {}
+    t = f.type
+    if t == "atom" and f.atom:
+        p = _tptp_sym(f.atom.predicate)
+        if not f.atom.terms: return p
         args = []
-        for term in formula.atom.terms:
+        for term in f.atom.terms:
             if term in varmap:
-                args.append(varmap[term])  # variable
+                args.append(varmap[term])
             elif term.lower() in _DEFAULT_VAR_TOKENS:
-                # Free variable not in varmap yet; treat as variable name (caller should close)
                 args.append(_tptp_sym(term, is_var=True))
             else:
-                args.append(_tptp_sym(term, is_var=False))  # constant
+                args.append(_tptp_sym(term))
         return f"{p}({','.join(args)})"
-
-    if t == "not" and formula.left:
-        return f"~({_fol_to_fof(formula.left, varmap)})"
-
-    if t in {"and", "or", "implies", "iff"} and formula.left and formula.right:
-        op = {"and": "&", "or": "|", "implies": "=>", "iff": "<=>"}[t]
-        L = _fol_to_fof(formula.left, varmap)
-        R = _fol_to_fof(formula.right, varmap)
-        return f"({L} {op} {R})"
-
-    if t in {"forall", "exists"} and formula.variable and formula.body:
-        v_user = formula.variable
-        v_tptp = _tptp_sym(v_user, is_var=True)
-        # Shadow any outer mapping for this variable name
-        inner_map = dict(varmap)
-        inner_map[v_user] = v_tptp
-        body = _fol_to_fof(formula.body, inner_map)
-        q = "![" if t == "forall" else "?["
-        return f"{q}{v_tptp}] : ({body})"
-
-    # Fallback (shouldn't happen)
+    if t == "not" and f.left:
+        return f"~({_fol_to_fof(f.left, varmap)})"
+    if t in {"and","or","implies","iff"} and f.left and f.right:
+        op = {"and":"&", "or":"|", "implies":"=>", "iff":"<=>"}[t]
+        return f"({_fol_to_fof(f.left,varmap)} {op} {_fol_to_fof(f.right,varmap)})"
+    if t in {"forall","exists"} and f.variable and f.body:
+        v = _tptp_sym(f.variable, is_var=True)
+        inner = dict(varmap); inner[f.variable] = v
+        q = "![" if t=="forall" else "?["
+        return f"{q}{v}] : ({_fol_to_fof(f.body, inner)})"
     return "/* unsupported */"
 
-def _close_universally(fof: str, free_vars: list[str]) -> str:
-    """If there are free variables, universally quantify them at top level."""
-    if not free_vars:
-        return fof
-    vars_tptp = ",".join(_tptp_sym(v, is_var=True) for v in free_vars)
-    return f"![{vars_tptp}] : ({fof})"
+def _close_universally(fof: str, free: List[str]) -> str:
+    if not free: return fof
+    vs = ",".join(_tptp_sym(v, is_var=True) for v in free)
+    return f"![{vs}] : ({fof})"
 
-def formula_to_fof_closed(formula: FOLFormula) -> str:
-    """Main entry: FOLFormula -> closed FOF (universal close free vars)."""
-    free = sorted(_collect_free_vars(formula))
-    fof = _fol_to_fof(formula, varmap={})
-    return _close_universally(fof, free)
+def formula_to_fof_closed(f: FOLFormula) -> str:
+    free = sorted(_collect_free_vars(f))
+    return _close_universally(_fol_to_fof(f, {}), free)
 
 def _sanitize_name(n: str) -> str:
-    """TPTP name (for 'fof(name, axiom, ...)'): keep simple, lowercase."""
-    n = re.sub(r"[^A-Za-z0-9_]", "_", n.strip())
-    if not n or not n[0].isalpha():
-        n = "s_" + (n or "x")
-    if not n[0].islower():
-        n = n[0].lower() + n[1:]
+    n = re.sub(r"[^A-Za-z0-9_]", "_", n.strip() or "s")
+    if not n[0].isalpha(): n = "s_" + n
+    if not n[0].islower(): n = n[0].lower() + n[1:]
     return n
 
-def build_global_fof_from_argument(argument: LogicalArgument) -> tuple[dict[str, str], str]:
-    """
-    Choose premises as statements that are not derived (i.e., they do not appear as 'to_id')
-    and are not the goal; the goal is argument.goal_id.
-    """
-    if not argument.goal_id:
-        raise ValueError("No goal_id set; cannot form a global entailment query for E.")
+def build_global_fof_from_argument(arg: LogicalArgument) -> tuple[dict[str,str], str]:
+    if not arg.goal_id: raise ValueError("No goal_id set")
+    derived = {inf.to_id for inf in arg.inferences}
+    goal = next(s for s in arg.statements if s.id == arg.goal_id)
+    premises: dict[str,str] = {}
+    for s in arg.statements:
+        if s.id == arg.goal_id: continue
+        if s.id not in derived:
+            premises[_sanitize_name(s.id)] = formula_to_fof_closed(s.formula)
+    return premises, formula_to_fof_closed(goal.formula)
 
-    derived = {inf.to_id for inf in argument.inferences}
-    goal_stmt = next((s for s in argument.statements if s.id == argument.goal_id), None)
-    if goal_stmt is None:
-        raise ValueError(f"goal_id='{argument.goal_id}' not found among statements")
-
-    premises_fof: dict[str, str] = {}
-    for s in argument.statements:
-        if s.id == argument.goal_id:
-            continue
-        if s.id not in derived:  # base premise
-            premises_fof[_sanitize_name(s.id)] = formula_to_fof_closed(s.formula)
-
-    goal_fof = formula_to_fof_closed(goal_stmt.formula)
-    return premises_fof, goal_fof
-
-def build_edge_fof(argument: LogicalArgument, inf: LogicalInference) -> tuple[dict[str, str], str]:
-    """Local (step) check: premises = formulas in from_ids; conjecture = to_id formula."""
-    to = next((s for s in argument.statements if s.id == inf.to_id), None)
-    if to is None:
-        raise ValueError(f"to_id '{inf.to_id}' not found")
-    premises_fof = {}
+def build_edge_fof(arg: LogicalArgument, inf: LogicalInference) -> tuple[dict[str,str], str]:
+    to = next(s for s in arg.statements if s.id == inf.to_id)
+    prem: dict[str,str] = {}
     for fid in inf.from_ids:
-        s = next((x for x in argument.statements if x.id == fid), None)
-        if s is None:
-            raise ValueError(f"from_id '{fid}' not found")
-        premises_fof[_sanitize_name(s.id)] = formula_to_fof_closed(s.formula)
-    goal_fof = formula_to_fof_closed(to.formula)
-    return premises_fof, goal_fof
-
+        s = next(x for x in arg.statements if x.id == fid)
+        prem[_sanitize_name(s.id)] = formula_to_fof_closed(s.formula)
+    return prem, formula_to_fof_closed(to.formula)
 
 # ============================================================================
 # MAIN
