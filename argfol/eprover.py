@@ -61,61 +61,6 @@ def _clean_tstp(proof: str) -> str:
     s = "\n".join(line.rstrip() for line in s.splitlines())
     return s.strip()
 
-def _digest_refutation_ui_mp(proof_tstp: str) -> Optional[str]:
-    """
-    Try to summarize the classic UI+MP refutation:
-      ∀x (L(x) -> R(x)), L(c); assume ~R(c); resolve to ⊥.
-    Return a short textual digest if recognizable, else None.
-    """
-    # Collect CNF clauses: name -> (role, body)
-    clause_re = re.compile(r"^cnf\(([^,]+),\s*([^,]+),\s*\((.*?)\)\s*,", re.M)
-    clauses = {m.group(1): (m.group(2).strip(), m.group(3).strip())
-               for m in clause_re.finditer(proof_tstp)}
-    if not clauses:
-        return None
-
-    # Find: negated goal (~R(c)), universal clause (R(X) | ~L(X)) or (can_fly(X)|~bird(X)),
-    # and instance L(c)
-    neg = next((b for r, b in clauses.values()
-                if r == "negated_conjecture" and b.replace(" ", "").startswith("~")), None)
-
-    # A unit instance like bird(penguin)
-    inst = next((b for r, b in clauses.values()
-                 if r in {"plain", "axiom"} and re.fullmatch(r"[a-z]\w*\([a-z]\w*\)", b.replace(" ", ""))), None)
-
-    # A disjunction like R(X1) | ~L(X1)
-    impl = next((b for r, b in clauses.values()
-                 if r in {"plain", "axiom"} and "|" in b and
-                 re.fullmatch(r"[a-z]\w*\(X\d+\)\s*\|\s*~[a-z]\w*\(X\d+\)", b.replace(" ", ""))), None)
-
-    if not (neg and inst and impl):
-        return None
-
-    # Parse out predicate and constant names
-    m1 = re.match(r"~([a-z]\w*)\(([a-z]\w*)\)", neg.replace(" ", ""))
-    m2 = re.match(r"([a-z]\w*)\(X\d+\)\s*\|\s*~([a-z]\w*)\(X\d+\)", impl.replace(" ", ""))
-    m3 = re.match(r"([a-z]\w*)\(([a-z]\w*)\)", inst.replace(" ", ""))
-
-    if not (m1 and m2 and m3):
-        return None
-
-    pred_R, c1 = m1.group(1), m1.group(2)
-    pred_R_impl, pred_L_impl = m2.group(1), m2.group(2)
-    pred_L_inst, c2 = m3.group(1), m3.group(2)
-
-    if not (pred_R == pred_R_impl and pred_L_inst == pred_L_impl and c1 == c2):
-        return None
-
-    # Build digest
-    return (
-        "Proof digest (Universal Instantiation + Modus Ponens):\n"
-        f"  1) From ∀x({pred_L_impl}(x) ⇒ {pred_R}(x)) → clausify to ({pred_R}(X) ∨ ¬{pred_L_impl}(X)).\n"
-        f"  2) Premise: {pred_L_impl}({c1}).\n"
-        f"  3) Negate goal: ¬{pred_R}({c1}).\n"
-        f"  4) Resolve (3) with (1) to get ¬{pred_L_impl}({c1}); resolve with (2) to reach ⊥.\n"
-        f"Therefore, {pred_R}({c1}) holds."
-    )
-
 # --------------------------- Main entry: prover call --------------------------
 
 def prove_with_e(
@@ -127,7 +72,6 @@ def prove_with_e(
     # New tuning knobs:
     compact: bool = True,        # prefer compact proof via epclextract if available
     output_level: int = 2,       # 2 is usually enough; 3 is chattier
-    want_digest: bool = True     # attempt a short human-readable summary when possible
 ) -> EProverResult:
     """
     Run E prover on a TPTP string and return a compact/clean proof if requested.
@@ -153,7 +97,6 @@ def prove_with_e(
                 "Install with: brew install eprover (macOS) or apt-get install eprover (Linux)"
             ),
             exit_code=127,
-            proof_digest=None
         )
 
     # Write problem to a temporary file
@@ -225,9 +168,6 @@ def prove_with_e(
         # If proof disabled or still not found, leave proof_tstp as None
         used_axioms = _extract_used_axioms_from_proof(proof_tstp) if proof_tstp else None
 
-        # Optional digest for common patterns
-        digest = _digest_refutation_ui_mp(proof_tstp) if (want_digest and proof_tstp) else None
-
         return EProverResult(
             status=status,
             proof_tstp=proof_tstp,
@@ -235,7 +175,6 @@ def prove_with_e(
             stdout=stdout_final,
             stderr=stderr_final,
             exit_code=exit_code,
-            proof_digest=digest
         )
 
     finally:

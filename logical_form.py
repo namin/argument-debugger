@@ -16,6 +16,7 @@ from google.genai import types
 import json
 import re
 from fol_e import check_entailment_fof
+from argfol.digest import render_generic_digest
 
 # ============================================================================
 # FOL STRUCTURE (using dataclasses)
@@ -925,9 +926,10 @@ def main():
                     else:
                         print("  (no proof emitted)")
 
-                    if r.proof_digest:
-                        print(" --- Proof digest ---")
-                        print(r.proof_digest)
+                    gen = render_generic_digest(r.proof_tstp, r.status)
+                    if gen:
+                        print("\n  --- Generic digest ---")
+                        print(gen)
                         
                     # Optional: also check each inference step to pinpoint gaps
                     print("\nVerifying each inference step with E…")
