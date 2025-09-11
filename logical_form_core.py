@@ -1,4 +1,3 @@
-# logical_form_core.py
 from dataclasses import dataclass
 from typing import List, Tuple, Dict, Any, Set
 

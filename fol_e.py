@@ -8,6 +8,7 @@ class ECheck:
     status: Literal["Theorem","Unsatisfiable","Satisfiable","CounterSatisfiable","Unknown","Timeout","Error"]
     used_axioms: Optional[List[str]]
     proof_tstp: Optional[str]
+    proof_digest: Optional[str]
     tptp: str
 
 def check_entailment_fof(axioms_fof: Dict[str, str], conjecture_fof: Optional[str],
@@ -25,5 +26,5 @@ def check_entailment_fof(axioms_fof: Dict[str, str], conjecture_fof: Optional[st
     )
     # Normalize status for UI
     status = res.status or "Unknown"
-    return ECheck(status=status, used_axioms=res.used_axioms, proof_tstp=res.proof_tstp, tptp=tptp)
+    return ECheck(status=status, used_axioms=res.used_axioms, proof_tstp=res.proof_tstp, proof_digest=res.proof_digest, tptp=tptp)
 

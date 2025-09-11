@@ -917,6 +917,10 @@ def main():
                     else:
                         print("  (no proof emitted)")
 
+                    if r.proof_digest:
+                        print(" --- Proof digest ---")
+                        print(r.proof_digest)
+                        
                     # Optional: also check each inference step to pinpoint gaps
                     print("\nVerifying each inference step with E…")
                     for inf in argument.inferences:
