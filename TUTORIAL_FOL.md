@@ -330,7 +330,53 @@ If the LLM output labels the inference appropriately, ASP will print the match; 
 
 ---
 
-## 9) Key design constraints
+## 9) E Prover Backend
+
+What that E proof is doing (line‑by‑line)
+
+E proves by refutation: negate the goal, clausify axioms + ¬goal into CNF clauses, and derive the empty clause $false. In your run:
+
+```
+fof(conj, conjecture, can_fly(penguin)).     ← your goal
+fof(s1, axiom, ![X1] : (bird(X1) => can_fly(X1))).  ← ∀x (bird→can_fly)
+fof(s2, axiom, bird(penguin)).                      ← bird(penguin)
+```
+
+Then E prepares the refutation:
+
+```
+fof(c_0_3, negated_conjecture, ~can_fly(penguin)).   ← assume ¬goal
+fof(c_0_5, plain, ![X2] : (~bird(X2) | can_fly(X2))).← NNF of s1 (implication→disjunction)
+```
+
+Now the CNF clauses (these are the ones that actually resolve):
+
+```
+cnf(c_0_6, negated_conjecture, (~can_fly(penguin))).          ← from ¬goal
+cnf(c_0_7, plain, (can_fly(X1) | ~bird(X1))).                 ← clausified s1
+cnf(c_0_8, plain, (bird(penguin))).                           ← clausified s2
+```
+
+Final step (contradiction):
+
+```
+cnf(c_0_9, ..., ($false), inference(...,[c_0_6, c_0_7, c_0_8]), ['proof']).
+```
+
+Intuitively:
+
+From `∀x(bird(x)→can_fly(x))` we get the clause `can_fly(X) ∨ ¬bird(X)`.
+
+From the instance we have bird(penguin).
+
+From the negated goal we have `¬can_fly(penguin)`.
+
+Resolve (3) with (1) to get `¬bird(penguin)`, then resolve with (2) to get `⊥`.
+Therefore the original goal `can_fly(penguin)` holds.
+(That’s exactly UI+MP.) TPTP’s derivation model is “axioms + negated conjecture ⇒ clauses ⇒ empty clause”; your lines follow that template. 
+
+
+## 10) Key design constraints
 
 - **Soundness first:** we don’t conflate multi‑premise steps into single edges for chain proofs.  
 - **Explicit quantifiers:** UI and ∀‑chain rely on the quantifier structure being present in the FOL.  

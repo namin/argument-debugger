@@ -14,6 +14,9 @@ from dataclasses import dataclass
 from typing import List, Dict, Optional, Literal, Union
 from google.genai import types
 import json
+import re
+from fol_e import check_entailment_fof
+from argfol.digest import render_generic_digest
 
 # ============================================================================
 # FOL STRUCTURE (using dataclasses)
@@ -336,6 +339,28 @@ valid_existential_generalization(Sinst, Sexists) :-
     inference_from(Sexists, Sinst),
     inference_pattern(Sexists, "existential_generalization").
 
+% UI + MP, label‑agnostic:
+% ∀x (L(x) -> R(x)), L(c)  ⊢  R(c)
+valid_ui_mp(Sforall, Sinst, Sgoal) :-
+    % Find a universal with an -> body
+    quantifier( QID, Sforall, "forall", V, BodyID ),
+    binary( BodyID, Sforall, "implies", LID, RID ),
+    fol_atom( LID, Sforall, PL ),     % left predicate name
+    fol_atom( RID, Sforall, PR ),     % right predicate name
+
+    % The instance premise has PL at the same argument position with a constant C
+    fol_atom( InstID, Sinst, PL ),
+    has_var( LID, Pos, V ),
+    has_const( InstID, Pos, C ),
+
+    % The goal has PR with the same constant C at the same argument position
+    fol_atom( GoalID, Sgoal, PR ),
+    has_var( RID, Pos, V ),
+    has_const( GoalID, Pos, C ),
+
+    % The inference actually cites these two premises
+    inference_from_both( Sgoal, Sforall, Sinst ).
+
 % ----------------------------------------------------------------------------
 % Fallacies
 % ----------------------------------------------------------------------------
@@ -375,6 +400,7 @@ fallacy_hasty_generalization(Sinst, Sforall) :-
 #show fallacy_affirming_consequent/3.
 #show fallacy_denying_antecedent/3.
 #show fallacy_hasty_generalization/2.
+#show valid_ui_mp/3.
         """
         
         return program
@@ -434,10 +460,18 @@ fallacy_hasty_generalization(Sinst, Sforall) :-
                         })
                     
                     elif atom_name == "valid_universal_instantiation":
-                        s1, s2 = [str(arg).strip('"') for arg in atom.arguments]
+                        s_forall, s_goal = [str(arg).strip('"') for arg in atom.arguments]
+                        # Find the instance premise among the cited from_ids for this goal
+                        inst = "?"
+                        for inf in argument.inferences:
+                            if inf.to_id == s_goal and s_forall in inf.from_ids:
+                                others = [x for x in inf.from_ids if x != s_forall]
+                                if others:
+                                    inst = others[0]
+                                break
                         valid_inferences.append({
                             "type": "universal_instantiation",
-                            "description": f"Valid universal instantiation: {s1} → {s2}"
+                            "description": f"Valid universal instantiation: [{s_forall}, {inst}] → {s_goal}"
                         })
                     
                     elif atom_name == "valid_syllogism":
@@ -461,6 +495,13 @@ fallacy_hasty_generalization(Sinst, Sforall) :-
                             "type": "invalid_pattern",
                             "description": f"Invalid inference pattern '{pattern}' for statement {to_id}"
                         })
+                    
+                    elif atom_name == "valid_ui_mp":
+                        s_forall, s_inst, s_goal = [str(arg).strip('"') for arg in atom.arguments]
+                        valid_inferences.append({
+                            "type": "universal_instantiation",
+                            "description": f"Valid universal instantiation: [{s_forall}, {s_inst}] → {s_goal}"
+                        })
                 
                 # Only take first model
                 break
@@ -476,6 +517,7 @@ fallacy_hasty_generalization(Sinst, Sforall) :-
         
         print("Extracting logical form...")
         argument = self.extract_logical_form(argument_text)
+        argument = canonicalize_inference_patterns(argument)
 
         print("\nLogical Structure:")
         for stmt in argument.statements:
@@ -628,6 +670,127 @@ def fully_verify_with_lean(argument: LogicalArgument) -> Dict:
     except Exception as e:
         print(f"\nLean micro‑verification error: {e}")
 
+def canonicalize_inference_patterns(argument: LogicalArgument) -> LogicalArgument:
+    """Re-label common shapes into the most specific canonical pattern."""
+    for inf in argument.inferences:
+        # Look for the UI+MP shape: ∀x(P→Q), P(c) ⊢ Q(c)
+        s_forall = next((s for s in argument.statements
+                         if s.id in inf.from_ids and s.formula.type == "forall"), None)
+        s_other  = next((s for s in argument.statements
+                         if s.id in inf.from_ids and (s_forall is None or s.id != s_forall.id)), None)
+        s_goal   = next((s for s in argument.statements if s.id == inf.to_id), None)
+
+        if s_forall and s_other and s_goal \
+           and s_other.formula.type == "atom" \
+           and s_goal.formula.type  == "atom":
+
+            body = s_forall.formula.body
+            if body and body.type == "implies" and body.left and body.right \
+               and body.left.type == "atom" and body.right.type == "atom" \
+               and len(body.left.atom.terms) == len(body.right.atom.terms) == 1 \
+               and len(s_other.formula.atom.terms) == len(s_goal.formula.atom.terms) == 1:
+
+                const = s_other.formula.atom.terms[0]
+                if (s_goal.formula.atom.terms[0] == const
+                    and s_other.formula.atom.predicate == body.left.atom.predicate
+                    and s_goal.formula.atom.predicate  == body.right.atom.predicate):
+                    inf.pattern = "universal_instantiation"  # canonical label
+    return argument
+
+# =============================================================================
+# FOL → TPTP/FOF translation (closed) and selection of premises/goal
+# =============================================================================
+
+_DEFAULT_VAR_TOKENS = {"x", "y", "z", "u", "v", "w"}
+
+def _tptp_sym(s: str, *, is_var: bool = False) -> str:
+    s = re.sub(r"[^A-Za-z0-9_]", "_", s.strip() or ("X" if is_var else "c"))
+    if is_var:
+        return (s[0].upper() + s[1:]) if not s[0].isupper() else s
+    return (s[0].lower() + s[1:]) if not s[0].islower() else s
+
+def _collect_free_vars(f: FOLFormula, bound: set[str] | None = None) -> set[str]:
+    if bound is None: bound = set()
+    t = f.type
+    if t == "atom" and f.atom:
+        vs = set()
+        for term in f.atom.terms:
+            if term not in bound and term.lower() in _DEFAULT_VAR_TOKENS:
+                vs.add(term)
+        return vs
+    if t == "not" and f.left: return _collect_free_vars(f.left, bound)
+    if t in {"and","or","implies","iff"} and f.left and f.right:
+        return _collect_free_vars(f.left, bound) | _collect_free_vars(f.right, bound)
+    if t in {"forall","exists"} and f.variable and f.body:
+        return _collect_free_vars(f.body, bound | {f.variable})
+    return set()
+
+def _fol_to_fof(f: FOLFormula, varmap: dict[str,str] | None = None) -> str:
+    if varmap is None: varmap = {}
+    t = f.type
+    if t == "atom" and f.atom:
+        p = _tptp_sym(f.atom.predicate)
+        if not f.atom.terms: return p
+        args = []
+        for term in f.atom.terms:
+            if term in varmap:
+                args.append(varmap[term])
+            elif term.lower() in _DEFAULT_VAR_TOKENS:
+                args.append(_tptp_sym(term, is_var=True))
+            else:
+                args.append(_tptp_sym(term))
+        return f"{p}({','.join(args)})"
+    if t == "not" and f.left:
+        return f"~({_fol_to_fof(f.left, varmap)})"
+    if t in {"and","or","implies","iff"} and f.left and f.right:
+        op = {"and":"&", "or":"|", "implies":"=>", "iff":"<=>"}[t]
+        return f"({_fol_to_fof(f.left,varmap)} {op} {_fol_to_fof(f.right,varmap)})"
+    if t in {"forall","exists"} and f.variable and f.body:
+        v = _tptp_sym(f.variable, is_var=True)
+        inner = dict(varmap); inner[f.variable] = v
+        q = "![" if t=="forall" else "?["
+        return f"{q}{v}] : ({_fol_to_fof(f.body, inner)})"
+    return "/* unsupported */"
+
+def _close_universally(fof: str, free: List[str]) -> str:
+    if not free: return fof
+    vs = ",".join(_tptp_sym(v, is_var=True) for v in free)
+    return f"![{vs}] : ({fof})"
+
+def formula_to_fof_closed(f: FOLFormula) -> str:
+    free = sorted(_collect_free_vars(f))
+    return _close_universally(_fol_to_fof(f, {}), free)
+
+def _sanitize_name(n: str) -> str:
+    n = re.sub(r"[^A-Za-z0-9_]", "_", n.strip() or "s")
+    if not n[0].isalpha(): n = "s_" + n
+    if not n[0].islower(): n = n[0].lower() + n[1:]
+    return n
+
+def build_global_fof_from_argument(arg: LogicalArgument) -> tuple[dict[str,str], str]:
+    if not arg.goal_id: raise ValueError("No goal_id set")
+    derived = {inf.to_id for inf in arg.inferences}
+    goal = next(s for s in arg.statements if s.id == arg.goal_id)
+    premises: dict[str,str] = {}
+    for s in arg.statements:
+        if s.id == arg.goal_id: continue
+        if s.id not in derived:
+            premises[_sanitize_name(s.id)] = formula_to_fof_closed(s.formula)
+    return premises, formula_to_fof_closed(goal.formula)
+
+def build_edge_fof(arg: LogicalArgument, inf: LogicalInference) -> tuple[dict[str,str], str]:
+    to = next(s for s in arg.statements if s.id == inf.to_id)
+    prem: dict[str,str] = {}
+    for fid in inf.from_ids:
+        s = next(x for x in arg.statements if x.id == fid)
+        prem[_sanitize_name(s.id)] = formula_to_fof_closed(s.formula)
+    return prem, formula_to_fof_closed(to.formula)
+
+# ============================================================================
+# MAIN
+# ============================================================================
+
+
 def main():
     """Test the logical form analyzer V3"""
     import argparse
@@ -635,6 +798,7 @@ def main():
     parser = argparse.ArgumentParser(description='Logical Form Analyzer')
     parser.add_argument('file', nargs='?', default='examples/examples_logical_form.txt',
                        help='Input file containing arguments (default: examples/examples_logical_form.txt)')
+    parser.add_argument('--e', action='store_true', help='Verify with E')
     parser.add_argument('--lean', action='store_true', help='Verify with Lean')
     parser.add_argument('--debug', action='store_true', help='Show ASP program and debug output')
     parser.add_argument('--example', type=int, help='Run a specific example (1-based index)')
@@ -688,6 +852,42 @@ def main():
             
             if not result['issues'] and not result['valid_inferences']:
                 print("\n⚠️ No formal logical patterns detected")
+
+            if args.e:
+                print("\nVerifying with E (global entailment)…")
+                try:
+                    # Build global premises + goal from the parsed argument
+                    premises_fof, goal_fof = build_global_fof_from_argument(argument)
+                    # Small default time budget; adjust or make a CLI flag if you like
+                    timeout_s = 5
+                    r = check_entailment_fof(premises_fof, goal_fof, cpu_limit=timeout_s)
+
+                    print(f"  SZS status: {r.status}")
+                    if r.used_axioms:
+                        print(f"  Used premises: {r.used_axioms}")
+                    if r.proof_tstp:
+                        print("  --- TSTP proof ---")
+                        print(r.proof_tstp)
+                    else:
+                        print("  (no proof emitted)")
+
+                    gen = render_generic_digest(r.proof_tstp, r.status)
+                    if gen:
+                        print("\n  --- Generic digest ---")
+                        print(gen)
+                        
+                    # Optional: also check each inference step to pinpoint gaps
+                    print("\nVerifying each inference step with E…")
+                    for inf in argument.inferences:
+                        p_fof, g_fof = build_edge_fof(argument, inf)
+                        r_step = check_entailment_fof(p_fof, g_fof, cpu_limit=timeout_s)
+                        print(f"  {inf.from_ids} ⊢ {inf.to_id} [{inf.pattern}]: {r_step.status}")
+                        if r_step.status != "Theorem":
+                            # This is a great place to trigger your repair generator
+                            pass
+                except Exception as ee:
+                    print(f"  E verification error: {ee}")
+
 
             if args.lean:
                 print("\nVerifying with Lean...")
