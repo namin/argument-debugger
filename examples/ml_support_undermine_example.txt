@@ -1,0 +1,11 @@
+Canaries are birds.
+Tweety is a canary.
+Therefore, Tweety is a bird.
+
+Birds sing.
+Tweety is a bird.
+Therefore, Tweety sings.
+
+Robots are not birds.
+Tweety is a robot.
+Therefore, Tweety is not a bird.
