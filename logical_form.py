@@ -459,10 +459,18 @@ fallacy_hasty_generalization(Sinst, Sforall) :-
                         })
                     
                     elif atom_name == "valid_universal_instantiation":
-                        s1, s2 = [str(arg).strip('"') for arg in atom.arguments]
+                        s_forall, s_goal = [str(arg).strip('"') for arg in atom.arguments]
+                        # Find the instance premise among the cited from_ids for this goal
+                        inst = "?"
+                        for inf in argument.inferences:
+                            if inf.to_id == s_goal and s_forall in inf.from_ids:
+                                others = [x for x in inf.from_ids if x != s_forall]
+                                if others:
+                                    inst = others[0]
+                                break
                         valid_inferences.append({
                             "type": "universal_instantiation",
-                            "description": f"Valid universal instantiation: {s1} → {s2}"
+                            "description": f"Valid universal instantiation: [{s_forall}, {inst}] → {s_goal}"
                         })
                     
                     elif atom_name == "valid_syllogism":
