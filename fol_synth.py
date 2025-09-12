@@ -32,9 +32,9 @@ def _norm(s: str) -> str:
     return re.sub(r'\s+', ' ', s.strip())
 
 def _lem_word(w: str) -> str:
+    # (unchanged) simple plural→singular for PREDICATES ONLY (not constants)
     w = w.lower()
-    # quick-and-dirty singularization
-    if len(w) <= 3: 
+    if len(w) <= 3:
         return w
     if w.endswith("ies"):   # policies -> policy
         return w[:-3] + "y"
@@ -45,18 +45,23 @@ def _lem_word(w: str) -> str:
     return w
 
 def _lemma_phrase(s: str) -> str:
-    # keep alphanum tokens; singularize each; join with '_'
     toks = re.findall(r"[A-Za-z0-9]+", s)
     toks = [_lem_word(t) for t in toks]
     return "_".join(toks) or "p"
 
 def _sym(s: str) -> str:
-    # symbol for predicates (concepts/conditions)
+    # For predicates/concepts: allow plural→singular normalization
     return _lemma_phrase(s)
 
 def _const(s: str) -> str:
-    # constant symbol for individuals
-    return _lemma_phrase(s)
+    """
+    **FIX**: For constants (proper names like 'Socrates'), DO NOT singularize.
+    Just sanitize: lowercase, keep alphanumerics, join with underscores.
+    """
+    toks = re.findall(r"[A-Za-z0-9]+", s)
+    if not toks:
+        return "a"
+    return "_".join(t.lower() for t in toks)
 
 # strip discourse markers on conclusions
 _CONC = re.compile(r'^(therefore|so|hence|thus|consequently|as a result)[,:]?\s+', re.IGNORECASE)
