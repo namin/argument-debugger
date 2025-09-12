@@ -114,6 +114,41 @@ def _maybe_synthesize_fol(ir: ArgumentIR, enable: bool):
     if found == 0:
         print("[debug] No strict steps with FOL recognized after synthesis.")
 
+def _waive_certified_obligations_in_graph(ir: ArgumentIR, g: AFGraph) -> AFGraph:
+    """
+    Remove CQ/obligation undercutters that target strict inferences proven (certified=True).
+    This is a non-invasive post-process: we prune nodes like 'cq:iX:*' and 'ob:iX:*'
+    so certified strict steps are no longer attacked by unmet-obligation nodes.
+    """
+    # Which inferences are certified?
+    cert_ids = set()
+    for inf in getattr(ir, "inferences", []):
+        if getattr(inf, "rule", None) == "strict" and (
+            getattr(inf, "certified", False) or
+            (getattr(inf, "meta", None) and isinstance(inf.meta, dict) and inf.meta.get("certified"))
+        ):
+            cert_ids.add(inf.id)
+    if not cert_ids:
+        return g
+
+    # Find CQ/obligation nodes tied to those inference ids
+    to_drop = set()
+    for nid in list(g.nodes):
+        for iid in cert_ids:
+            if nid.startswith(f"cq:{iid}:") or nid.startswith(f"ob:{iid}:"):
+                to_drop.add(nid)
+                break
+
+    if not to_drop:
+        return g
+
+    # Prune nodes and any incident attacks; drop their labels
+    g.nodes -= to_drop
+    g.attacks = {(a, b) for (a, b) in g.attacks if a not in to_drop and b not in to_drop}
+    for nid in to_drop:
+        g.labels.pop(nid, None)
+    return g
+
 def _run_one(ir: ArgumentIR, args, label: Optional[str] = None):
     _maybe_synthesize_fol(ir, enable=(args.synth_fol or args.e2e))
 
@@ -127,6 +162,7 @@ def _run_one(ir: ArgumentIR, args, label: Optional[str] = None):
 
     tgt = _pick_target(ir, args.target)
     g = compile_to_af(ir, include_default_doubt=True, include_obligation_attackers=True, support_as_defense=True)
+    g = _waive_certified_obligations_in_graph(ir, g)
 
     print("\n=== Initial (Grounded) ===")
     print("Target id:", tgt)

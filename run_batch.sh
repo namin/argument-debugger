@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-set -e
-echo "Running batch"
+set -euo pipefail
+OUT="out"
+mkdir -p "$OUT"
+echo "Running NL → IR → FOL → Cert → AF → Optimal (fallback greedy)"
 for f in arguments_nl/*.txt; do
   echo "---- $f ----"
-  python -B strengthener_cli.py --file "$f" --e2e
-  echo
+  CERT_OUTDIR="$OUT/certs" \
+  python -B strengthener_cli.py --file "$f" --e2e --synth-fol --dump-ir "$OUT"/
 done
-echo "Done."
