@@ -81,7 +81,7 @@ Guidelines:
 - If a premise is contested, use "undermines" from a proposition to "iX#premise:pY".
 - If a warrant/backing/rule is contested, use "undercuts" to "iX#warrant" or "iX#rule".
 - For strict deductive steps, include a minimal "fol" with premises and conclusion (optional symbols).
-- Choose 1–3 "targets" (main claims).
+- Instantiate scheme-appropriate Critical Questions as "obligations" with status "unmet" unless clearly satisfied in the text.
 Return ONLY JSON.
 Argument:
 """
@@ -118,11 +118,27 @@ def _heuristic_parse(text: str) -> ArgumentIR:
     rels = [Relation(type="supports", frm="i1", to=tgt)]
     return ArgumentIR(propositions=props, inferences=[i1], relations=rels, targets=[tgt])
 
+def _ensure_obligations(ir: ArgumentIR) -> ArgumentIR:
+    """
+    If any inference has no obligations, instantiate scheme/type-appropriate CQs as unmet.
+    """
+    for inf in ir.inferences:
+        if not inf.obligations:
+            scheme = inf.scheme if inf.scheme else None
+            cq_list = cqs_for(scheme, inf.type if not scheme else "")
+            new_obs = []
+            for k, _prompt in cq_list:
+                ob_id = f"{inf.id}.{k}"
+                new_obs.append(Obligation(id=ob_id, kind="CQ", name=k, status="unmet"))
+            inf.obligations = new_obs
+    return ir
+
 # ---- Public API ---------------------------------------------------------------
 def nl_to_argir(text: str) -> ArgumentIR:
     obj = _llm_json(_PROMPT + "\n" + text.strip()) if _LLM else None
     if obj is None:
-        return _heuristic_parse(text)
+        ir = _heuristic_parse(text)
+        return _ensure_obligations(ir)
     try:
         ir = load_argument_ir(obj)
         # Ensure every inference has an explicit supports to its conclusion
@@ -130,7 +146,8 @@ def nl_to_argir(text: str) -> ArgumentIR:
         for inf in ir.inferences:
             if (inf.id, inf.to) not in have:
                 ir.relations.append(Relation(type="supports", frm=inf.id, to=inf.to))
-        return ir
+        return _ensure_obligations(ir)
     except Exception:
         # fall back if validation fails
-        return _heuristic_parse(text)
+        ir = _heuristic_parse(text)
+        return _ensure_obligations(ir)

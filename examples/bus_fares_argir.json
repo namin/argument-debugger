@@ -1,0 +1,153 @@
+{
+  "propositions": [
+    {
+      "id": "p1",
+      "text": "Goal: increase net transit revenue by at least 3% while keeping ridership loss at or below 2%.",
+      "kind": "value",
+      "modality": "asserted"
+    },
+    {
+      "id": "p2",
+      "text": "Historically, a 10% fare increase reduces ridership by 3–4%.",
+      "kind": "fact",
+      "modality": "asserted",
+      "sources": [
+        "study:A"
+      ]
+    },
+    {
+      "id": "p3",
+      "text": "Off-peak riders are less price-sensitive; a 5% off-peak increase is estimated to reduce ridership by ~1.5%.",
+      "kind": "fact",
+      "modality": "asserted",
+      "sources": [
+        "study:B"
+      ]
+    },
+    {
+      "id": "p4",
+      "text": "Low-income riders are disproportionately affected by fare increases.",
+      "kind": "fact",
+      "modality": "asserted",
+      "sources": [
+        "equity_report:C"
+      ]
+    },
+    {
+      "id": "p5",
+      "text": "Improved fare enforcement can recover ~5% revenue with negligible ridership loss.",
+      "kind": "fact",
+      "modality": "asserted",
+      "sources": [
+        "ops_audit:D"
+      ]
+    },
+    {
+      "id": "p6",
+      "text": "We should raise fares by 5% off-peak only.",
+      "kind": "policy",
+      "modality": "asserted"
+    }
+  ],
+  "inferences": [
+    {
+      "id": "i1",
+      "from": [
+        "p1",
+        "p3"
+      ],
+      "to": "p6",
+      "rule": "defeasible",
+      "type": "practical",
+      "scheme": "PracticalReasoning",
+      "warrant_text": "If a policy achieves the revenue goal and keeps ridership loss within the threshold, it is justified.",
+      "qualifier": "ceteris paribus",
+      "obligations": [
+        {
+          "id": "i1.goal_stated",
+          "kind": "CQ",
+          "name": "goal_stated",
+          "status": "met"
+        },
+        {
+          "id": "i1.means_lead_to_goal",
+          "kind": "CQ",
+          "name": "means_lead_to_goal",
+          "status": "unmet"
+        },
+        {
+          "id": "i1.side_effects_acceptable",
+          "kind": "CQ",
+          "name": "side_effects_acceptable",
+          "status": "unmet"
+        },
+        {
+          "id": "i1.better_alternative_absent",
+          "kind": "CQ",
+          "name": "better_alternative_absent",
+          "status": "unmet"
+        }
+      ]
+    },
+    {
+      "id": "i2",
+      "from": [
+        "p5"
+      ],
+      "to": "p5",
+      "rule": "defeasible",
+      "type": "causal",
+      "scheme": "CauseToEffect",
+      "obligations": [
+        {
+          "id": "i2.mechanism",
+          "kind": "CQ",
+          "name": "mechanism",
+          "status": "unmet"
+        },
+        {
+          "id": "i2.temporal_precedence",
+          "kind": "CQ",
+          "name": "temporal_precedence",
+          "status": "unmet"
+        },
+        {
+          "id": "i2.robustness",
+          "kind": "CQ",
+          "name": "robustness",
+          "status": "unmet"
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "type": "supports",
+      "from": "i1",
+      "to": "p6"
+    },
+    {
+      "type": "supports",
+      "from": "i2",
+      "to": "p5"
+    },
+    {
+      "type": "rebuts",
+      "from": "p5",
+      "to": "p6"
+    },
+    {
+      "type": "undercuts",
+      "from": "p4",
+      "to": "i1#warrant"
+    },
+    {
+      "type": "undermines",
+      "from": "p2",
+      "to": "i1#premise:p3"
+    }
+  ],
+  "targets": [
+    "p6"
+  ]
+}

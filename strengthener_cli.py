@@ -13,12 +13,13 @@ Reuse llm.py if present. No external deps.
 """
 
 from __future__ import annotations
-import argparse
+import argparse, json
 from typing import Optional, Set, Tuple
 from nl_to_argir import nl_to_argir
 from compile_to_af import compile_to_af, AFGraph, neg_id
 from af_semantics import grounded_extension, status, attackers_of, unattacked
 from enforcement_greedy import strengthen_within, strengthen_across
+from arg_ir import load_argument_ir
 
 def _pick_target(ir, hint: Optional[str]) -> str:
     if hint:
@@ -50,20 +51,26 @@ def main():
     ap = argparse.ArgumentParser(description="Argument Strengthener (one-parse) CLI")
     ap.add_argument("--text", type=str, help="Argument text")
     ap.add_argument("--file", type=str, help="Path to text file")
+    ap.add_argument("--argir", type=str, help="Path to ARG-IR JSON file")
     ap.add_argument("--target", type=str, help="Target claim id or substring")
     ap.add_argument("--budget", type=int, default=3, help="Max edit steps")
     ap.add_argument("--within-first", action="store_true", help="Do within-link repairs before across-graph")
     args = ap.parse_args()
 
-    if not args.text and not args.file:
-        ap.error("Provide --text or --file")
+    if not args.text and not args.file and not args.argir:
+        ap.error("Provide --text or --file or --argir")
 
-    text = args.text
-    if args.file:
-        with open(args.file, "r", encoding="utf-8") as f:
-            text = f.read()
+    if args.argir:
+        with open(args.argir, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        ir = load_argument_ir(data)
+    else:
+        text = args.text
+        if args.file:
+            with open(args.file, "r", encoding="utf-8") as f:
+                text = f.read()
+        ir = nl_to_argir(text)
 
-    ir = nl_to_argir(text)
     tgt = _pick_target(ir, args.target)
     g = compile_to_af(ir, include_default_doubt=True, include_obligation_attackers=True, support_as_defense=True)
 
