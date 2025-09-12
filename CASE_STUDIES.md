@@ -1,4 +1,6 @@
-# Case Study on Gettier's Argument
+# Case Studies (Potential)
+
+## Gettier's Argument
 
 - [PDF](https://fitelson.org/proseminar/gettier.pdf)
 - [IEP](https://iep.utm.edu/gettier/)
