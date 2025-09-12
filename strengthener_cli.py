@@ -1,33 +1,41 @@
 
 # -*- coding: utf-8 -*-
 """
-One-parse Strengthener CLI.
+One-parse Strengthener CLI (with optimal enforcement and strict-step certification).
 
 Pipeline:
-  NL text --(LLM/heuristic)--> ARG-IR --(compiler)--> AF
-    → report status, attack surface, unmet obligations
-    → try within-link strengthening (answers to obligations) and/or across-graph counters
-    → show certificates: grounded extension before/after
-    → explain acceptance change in plain language
+  NL text or ARG-IR JSON
+    → parse (LLM/heuristic) to ARG-IR
+    → (optional) certify strict steps with E/Lean
+    → compile to AF (with default-doubt & obligation undercutters)
+    → report status and attack surface
+    → (optional) optimal enforcement via clingo OR greedy strengthening
+    → explain acceptance change
+
+Usage examples:
+  python strengthener_cli.py --text "A. B. Therefore C." --within-first --budget 3
+  python strengthener_cli.py --argir examples/bus_fares_argir.json --optimal
+  python strengthener_cli.py --file draft.txt --certify --optimal
 """
 
 from __future__ import annotations
 import argparse, json
 from typing import Optional
+
 from nl_to_argir import nl_to_argir
 from compile_to_af import compile_to_af, AFGraph, neg_id
 from af_semantics import grounded_extension, status, attackers_of, unattacked
 from enforcement_greedy import strengthen_within, strengthen_across
-from arg_ir import load_argument_ir
+from enforcement_optimal import optimal_enforce
 from pedagogy import explain_acceptance_delta
+from arg_ir import load_argument_ir
+from certify_strict import certify_strict_steps
 
 def _pick_target(ir, hint: Optional[str]) -> str:
     if hint:
-        # exact id
         ids = {p.id for p in ir.propositions}
         if hint in ids:
             return hint
-        # substring match
         for p in ir.propositions:
             if hint.lower() in p.text.lower():
                 return p.id
@@ -42,7 +50,6 @@ def _surface(g: AFGraph, target: str):
     neg_t = neg_id(target)
     defenders = {a for (a, b) in g.attacks if b == neg_t}
     print(f"Direct defenders of {target} (attack {neg_t}):", sorted(list(defenders)) or "∅")
-    # obligations
     unmet = [n for n, lab in g.labels.items() if lab.startswith("CQ unmet:") or lab.startswith("Obligation unmet:")]
     if unmet:
         print("Unmet obligations:", sorted(unmet))
@@ -53,13 +60,16 @@ def main():
     ap.add_argument("--file", type=str, help="Path to text file")
     ap.add_argument("--argir", type=str, help="Path to ARG-IR JSON file")
     ap.add_argument("--target", type=str, help="Target claim id or substring")
-    ap.add_argument("--budget", type=int, default=3, help="Max edit steps")
-    ap.add_argument("--within-first", action="store_true", help="Do within-link repairs before across-graph")
+    ap.add_argument("--budget", type=int, default=3, help="Max edit steps (for greedy)")
+    ap.add_argument("--within-first", action="store_true", help="Do within-link repairs before across-graph (greedy)")
+    ap.add_argument("--optimal", action="store_true", help="Use clingo optimal enforcement")
+    ap.add_argument("--certify", action="store_true", help="Attempt E/Lean certificates for strict steps (updates obligations)")
     args = ap.parse_args()
 
     if not args.text and not args.file and not args.argir:
         ap.error("Provide --text or --file or --argir")
 
+    # Load ARG-IR
     if args.argir:
         with open(args.argir, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -70,6 +80,15 @@ def main():
             with open(args.file, "r", encoding="utf-8") as f:
                 text = f.read()
         ir = nl_to_argir(text)
+
+    # Certificates for strict steps (optional)
+    if args.certify:
+        res = certify_strict_steps(ir)
+        if res:
+            print("\n=== Strict-step Certification ===")
+            for r in res:
+                status_txt = "OK" if r.ok else "FAIL"
+                print(f"{r.inference_id}: {r.tool} → {status_txt}")
 
     tgt = _pick_target(ir, args.target)
     g = compile_to_af(ir, include_default_doubt=True, include_obligation_attackers=True, support_as_defense=True)
@@ -82,7 +101,22 @@ def main():
     print("Grounded extension size:", len(E0))
     _surface(g, tgt)
 
-    # Strengthening
+    if args.optimal:
+        plan = optimal_enforce(ir, g, tgt)
+        print("\n--- Optimal Plan (clingo) ---")
+        print("Cost:", plan.cost, "Before:", plan.before_status, "After:", plan.after_status)
+        for e in plan.edits:
+            if e.kind == "add_node":
+                print("  add node", e.node_id, ":", e.node_label)
+            if e.kind == "add_attack" and e.edge:
+                print("  add attack", e.edge[0], "->", e.edge[1])
+        for r in plan.rationale:
+            print("  *", r)
+        for line in explain_acceptance_delta(plan.before_extension, plan.after_extension, g.attacks, g.labels, tgt):
+            print("   ", line)
+        return
+
+    # Greedy path
     remaining = args.budget
     if args.within_first:
         plan_w = strengthen_within(ir, tgt, g, remaining)
@@ -95,7 +129,6 @@ def main():
                 print("  add attack", e.edge[0], "->", e.edge[1])
         for r in plan_w.rationale:
             print("  *", r)
-        # Explanation
         for line in explain_acceptance_delta(plan_w.before_extension, plan_w.after_extension, g.attacks, g.labels, tgt):
             print("   ", line)
         used = sum(1 for e in plan_w.edits if e.kind == "add_attack")
