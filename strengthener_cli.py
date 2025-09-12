@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 """
 One-parse Strengthener CLI (with optimal enforcement and strict-step certification).
@@ -16,6 +15,7 @@ Usage examples:
   python strengthener_cli.py --text "A. B. Therefore C." --within-first --budget 3
   python strengthener_cli.py --argir examples/bus_fares_argir.json --optimal
   python strengthener_cli.py --file draft.txt --certify --optimal
+  python strengthener_cli.py --file arguments_nl/01_syllogism_socrates.txt --e2e
 """
 
 from __future__ import annotations
@@ -64,6 +64,9 @@ def main():
     ap.add_argument("--within-first", action="store_true", help="Do within-link repairs before across-graph (greedy)")
     ap.add_argument("--optimal", action="store_true", help="Use clingo optimal enforcement")
     ap.add_argument("--certify", action="store_true", help="Attempt E/Lean certificates for strict steps (updates obligations)")
+    # NEW: end-to-end convenience flag
+    ap.add_argument("--e2e", action="store_true",
+                    help="End-to-end: certify strict steps, then optimal enforcement (fallback to greedy).")
     args = ap.parse_args()
 
     if not args.text and not args.file and not args.argir:
@@ -100,6 +103,55 @@ def main():
     E0 = grounded_extension(g.nodes, g.attacks)
     print("Grounded extension size:", len(E0))
     _surface(g, tgt)
+
+    # NEW: E2E path (certify + optimal; fallback to greedy)
+    if args.e2e:
+        # If user didn't already ask for --certify, do it here so AF reflects proof results.
+        if not args.certify:
+            res = certify_strict_steps(ir)
+            if res:
+                print("\n=== Strict-step Certification (E2E) ===")
+                for r in res:
+                    print(f"{r.inference_id}: {r.tool} → {'OK' if r.ok else 'FAIL'}")
+        # Recompile AF to reflect any obligation-status changes from certification
+        g = compile_to_af(ir, include_default_doubt=True, include_obligation_attackers=True, support_as_defense=True)
+        try:
+            plan = optimal_enforce(ir, g, tgt)
+            print("\n--- Optimal Plan (E2E) ---")
+            print("Cost:", plan.cost, "Before:", plan.before_status, "After:", plan.after_status)
+            for e in plan.edits:
+                if e.kind == "add_node":
+                    print("  add node", e.node_id, ":", e.node_label)
+                if e.kind == "add_attack" and e.edge:
+                    print("  add attack", e.edge[0], "->", e.edge[1])
+            for r in plan.rationale:
+                print("  *", r)
+            # Apply edits so the explanation uses the updated graph
+            for e in plan.edits:
+                if e.kind == "add_node" and e.node_id:
+                    g.nodes.add(e.node_id); g.labels[e.node_id] = e.node_label or e.node_id
+                if e.kind == "add_attack" and e.edge:
+                    g.attacks.add(e.edge)
+            for line in explain_acceptance_delta(plan.before_extension, plan.after_extension, g.attacks, g.labels, tgt):
+                print("   ", line)
+            return
+        except Exception as e:
+            print("\n[warn] Optimal enforcement failed (likely clingo missing):", e)
+            print("[warn] Falling back to greedy within-first (budget=max(3, --budget))")
+            remaining = max(3, args.budget)
+            plan_w = strengthen_within(ir, tgt, g, remaining)
+            print("\n--- Within-link Plan (fallback) ---")
+            print("Before:", plan_w.before_status, "After:", plan_w.after_status)
+            for e in plan_w.edits:
+                if e.kind == "add_node":
+                    print("  add node", e.node_id, ":", e.node_label)
+                if e.kind == "add_attack" and e.edge:
+                    print("  add attack", e.edge[0], "->", e.edge[1])
+            for r in plan_w.rationale:
+                print("  *", r)
+            for line in explain_acceptance_delta(plan_w.before_extension, plan_w.after_extension, g.attacks, g.labels, tgt):
+                print("   ", line)
+            return
 
     if args.optimal:
         plan = optimal_enforce(ir, g, tgt)
