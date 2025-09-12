@@ -1,73 +1,79 @@
-
+# certify_strict.py
 # -*- coding: utf-8 -*-
 """
-Strict-step certification:
-- For inferences with rule="strict" and a FOL payload, attempt E prover.
-- If successful, mark deductive obligations as met and attach a certificate.
-- Lean hook is included but disabled by default (environment-dependent).
+Strict-step certification: try E prover on each inference with rule='strict' and a FOL payload.
+Returns a list of CertReport objects printed by the CLI like:
 
-This module is robust: if E or Lean aren't available, it degrades gracefully.
+=== Strict-step Certification (E2E) ===
+i1: eprover → OK
 """
 
 from __future__ import annotations
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
-import shutil, subprocess, tempfile, os
+from typing import List
+import os, shutil, subprocess, tempfile, pathlib
 
-from arg_ir import ArgumentIR, Inference, Obligation, FOLPayload
-from tptp_utils import make_tptp_problem
+from arg_ir import ArgumentIR
+from tptp_emit import make_tptp_problem
 
 @dataclass
-class CertResult:
+class CertReport:
     inference_id: str
-    tool: str                 # "eprover" | "lean" | "none"
+    tool: str
     ok: bool
-    details: str
+    info: str = ""
 
 def _have(cmd: str) -> bool:
     return shutil.which(cmd) is not None
 
-def _try_eprover(fol: FOLPayload, name: str = "prob") -> CertResult:
+def _prove_with_e(premises: List[str], conclusion: str, name: str) -> CertReport:
     if not _have("eprover"):
-        return CertResult(name, "eprover", False, "eprover not found in PATH")
-    tptp = make_tptp_problem(fol, name_prefix=name)
-    with tempfile.TemporaryDirectory() as d:
-        path = os.path.join(d, f"{name}.p")
-        with open(path, "w", encoding="utf-8") as f:
+        return CertReport(name, "eprover", False, "eprover not found in PATH")
+    tptp = make_tptp_problem(premises, conclusion, name_prefix=name)
+    # Optionally save the TPTP file for inspection if CERT_OUTDIR is set
+    save_dir = os.environ.get("CERT_OUTDIR")
+    if save_dir:
+        pathlib.Path(save_dir).mkdir(parents=True, exist_ok=True)
+        with open(os.path.join(save_dir, f"{name}.p"), "w", encoding="utf-8") as f:
             f.write(tptp)
-        try:
-            # --auto selects strategy; --cpu-limit short to return quickly
-            proc = subprocess.run(
-                ["eprover", "--auto", "--cpu-limit=5", path],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False
-            )
-            out = proc.stdout + "\n" + proc.stderr
-            ok = "SZS status Theorem" in out or "SZS status Unsatisfiable" in out
-            return CertResult(name, "eprover", ok, out if ok else out[-4000:])
-        except Exception as e:
-            return CertResult(name, "eprover", False, f"eprover error: {e}")
+    with tempfile.NamedTemporaryFile("w", suffix=".p", delete=False, encoding="utf-8") as tmp:
+        tmp.write(tptp); tmp_path = tmp.name
+    try:
+        # Ask E to solve; accept either stdout or stderr containing SZS status
+        proc = subprocess.run(
+            ["eprover", "--auto", "--cpu-limit=5", tmp_path],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+        out = (proc.stdout or "") + "\n" + (proc.stderr or "")
+        ok = ("SZS status Theorem" in out) or ("SZS status Unsatisfiable" in out)
+        return CertReport(name, "eprover", ok, "OK" if ok else out.strip()[:500])
+    finally:
+        try: os.unlink(tmp_path)
+        except Exception: pass
 
-def _try_lean_stub(fol: FOLPayload, name: str = "prob") -> CertResult:
-    # Placeholder; real Lean integration depends on project setup.
-    return CertResult(name, "lean", False, "Lean integration not configured")
-
-def _mark_deductive_met(inf: Inference) -> None:
-    for ob in inf.obligations:
-        if ob.kind.lower().startswith("ded") or ob.name in ("premises_present","rule_applicable","term_consistency"):
-            ob.status = "met"
-
-def certify_strict_steps(ir: ArgumentIR, prefer: str = "eprover") -> List[CertResult]:
-    results: List[CertResult] = []
-    for inf in ir.inferences:
-        if inf.rule != "strict" or inf.fol is None or not inf.fol.conclusion:
+def certify_strict_steps(ir: ArgumentIR) -> List[CertReport]:
+    reports: List[CertReport] = []
+    # Iterate all inferences; certify those that look strict with a FOL payload
+    for inf in getattr(ir, "inferences", []):
+        if getattr(inf, "rule", None) != "strict":
             continue
-        # attempt E first
-        res = _try_eprover(inf.fol, name=inf.id) if prefer == "eprover" else _try_lean_stub(inf.fol, name=inf.id)
-        results.append(res)
-        if res.ok:
-            # record certificate payload
-            inf.certificates[res.tool] = f"OK: {res.tool} proof available (see details)"
-            _mark_deductive_met(inf)
-        else:
-            inf.certificates[res.tool] = f"FAILED: {res.details[:500]}"
-    return results
+        fol = getattr(inf, "fol", None)
+        if not fol or not getattr(fol, "conclusion", None):
+            continue
+        # Expect fol.premises is a list[str]
+        premises = list(getattr(fol, "premises", []))
+        conclusion = getattr(fol, "conclusion", "")
+        rep = _prove_with_e(premises, conclusion, name=inf.id)
+        reports.append(rep)
+
+        # If proof OK, mark the inference as certified so AF obligations can be relaxed
+        if rep.ok:
+            # Set a conventional flag many compilers use; harmless if unused
+            try:
+                # attach marker
+                setattr(inf, "certified", True)
+                if getattr(inf, "meta", None) is not None and isinstance(inf.meta, dict):
+                    inf.meta["certified"] = True
+            except Exception:
+                pass
+    return reports
