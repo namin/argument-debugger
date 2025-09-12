@@ -8,18 +8,18 @@ Pipeline:
     → report status, attack surface, unmet obligations
     → try within-link strengthening (answers to obligations) and/or across-graph counters
     → show certificates: grounded extension before/after
-
-Reuse llm.py if present. No external deps.
+    → explain acceptance change in plain language
 """
 
 from __future__ import annotations
 import argparse, json
-from typing import Optional, Set, Tuple
+from typing import Optional
 from nl_to_argir import nl_to_argir
 from compile_to_af import compile_to_af, AFGraph, neg_id
 from af_semantics import grounded_extension, status, attackers_of, unattacked
 from enforcement_greedy import strengthen_within, strengthen_across
 from arg_ir import load_argument_ir
+from pedagogy import explain_acceptance_delta
 
 def _pick_target(ir, hint: Optional[str]) -> str:
     if hint:
@@ -78,7 +78,8 @@ def main():
     print("Target id:", tgt)
     print("Target text:", next((p.text for p in ir.propositions if p.id == tgt), tgt))
     print("Status:", status(g.nodes, g.attacks, tgt))
-    print("Grounded extension size:", len(grounded_extension(g.nodes, g.attacks)))
+    E0 = grounded_extension(g.nodes, g.attacks)
+    print("Grounded extension size:", len(E0))
     _surface(g, tgt)
 
     # Strengthening
@@ -94,6 +95,9 @@ def main():
                 print("  add attack", e.edge[0], "->", e.edge[1])
         for r in plan_w.rationale:
             print("  *", r)
+        # Explanation
+        for line in explain_acceptance_delta(plan_w.before_extension, plan_w.after_extension, g.attacks, g.labels, tgt):
+            print("   ", line)
         used = sum(1 for e in plan_w.edits if e.kind == "add_attack")
         remaining = max(0, remaining - used)
         # apply to graph for next step
@@ -114,6 +118,8 @@ def main():
                     print("  add attack", e.edge[0], "->", e.edge[1])
             for r in plan_a.rationale:
                 print("  *", r)
+            for line in explain_acceptance_delta(plan_a.before_extension, plan_a.after_extension, g.attacks, g.labels, tgt):
+                print("   ", line)
     else:
         plan_a = strengthen_across(ir, tgt, g, remaining)
         print("\n--- Across-graph Plan ---")
@@ -125,6 +131,8 @@ def main():
                 print("  add attack", e.edge[0], "->", e.edge[1])
         for r in plan_a.rationale:
             print("  *", r)
+        for line in explain_acceptance_delta(plan_a.before_extension, plan_a.after_extension, g.attacks, g.labels, tgt):
+            print("   ", line)
         used = sum(1 for e in plan_a.edits if e.kind == "add_attack")
         remaining = max(0, remaining - used)
         for e in plan_a.edits:
@@ -143,6 +151,8 @@ def main():
                     print("  add attack", e.edge[0], "->", e.edge[1])
             for r in plan_w.rationale:
                 print("  *", r)
+            for line in explain_acceptance_delta(plan_w.before_extension, plan_w.after_extension, g.attacks, g.labels, tgt):
+                print("   ", line)
 
 if __name__ == "__main__":
     main()
