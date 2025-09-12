@@ -1,0 +1,23 @@
+No belief is rationally justified.
+But if that's true, then the belief 'no belief is rationally justified' is itself not justified.
+So if skepticism is true, we shouldn't believe skepticism.
+Therefore, skepticism defeats itself.
+
+Someone with $1 million is rich.
+If someone with $X is rich, then someone with $X - 1 is also rich.
+(After all, one dollar can't make the difference between rich and not-rich!)
+Therefore, someone with $999,999 is rich.
+By repeated application: someone with $1 is rich.
+But that's absurd - so our concept of 'rich' is incoherent.
+
+It's possible that a maximally great being exists.
+A maximally great being would have necessary existence (exists in all possible worlds).
+If it's possible that a necessary being exists, then that being exists in at least one possible world.
+But if a necessary being exists in any possible world, it exists in all possible worlds.
+Therefore, a maximally great being exists in the actual world.
+
+Some people claim 'there is no objective truth.'
+But this claim itself purports to be objectively true.
+For any meaningful debate to occur, participants must assume that some statements are objectively true or false.
+Even to argue against objective truth requires assuming objective standards of logic and evidence.
+Therefore, the very possibility of rational discourse presupposes objective truth.
