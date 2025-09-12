@@ -1,0 +1,77 @@
+{
+  "propositions": [
+    {
+      "id": "p1",
+      "text": "All humans are mortal.",
+      "kind": "fact",
+      "modality": "asserted"
+    },
+    {
+      "id": "p2",
+      "text": "Socrates is human.",
+      "kind": "fact",
+      "modality": "asserted"
+    },
+    {
+      "id": "p3",
+      "text": "Therefore, Socrates is mortal.",
+      "kind": "fact",
+      "modality": "asserted"
+    }
+  ],
+  "inferences": [
+    {
+      "id": "i1",
+      "from": [
+        "p1",
+        "p2"
+      ],
+      "to": "p3",
+      "rule": "strict",
+      "type": "deductive",
+      "scheme": "ModusPonens",
+      "obligations": [
+        {
+          "id": "i1.premises_present",
+          "kind": "DeductiveCheck",
+          "name": "premises_present",
+          "status": "unknown"
+        },
+        {
+          "id": "i1.rule_applicable",
+          "kind": "DeductiveCheck",
+          "name": "rule_applicable",
+          "status": "unknown"
+        },
+        {
+          "id": "i1.term_consistency",
+          "kind": "DeductiveCheck",
+          "name": "term_consistency",
+          "status": "unknown"
+        }
+      ],
+      "fol": {
+        "premises": [
+          "forall x. Human(x) -> Mortal(x)",
+          "Human(socrates)"
+        ],
+        "conclusion": "Mortal(socrates)",
+        "symbols": {
+          "Human": "Thing->Bool",
+          "Mortal": "Thing->Bool",
+          "socrates": "Thing"
+        }
+      }
+    }
+  ],
+  "relations": [
+    {
+      "type": "supports",
+      "from": "i1",
+      "to": "p3"
+    }
+  ],
+  "targets": [
+    "p3"
+  ]
+}

@@ -1,0 +1,1 @@
+All mammals are warm-blooded. All dogs are mammals. Fido is a dog. Therefore Fido is warm-blooded.

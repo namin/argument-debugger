@@ -1,0 +1,1 @@
+If the alarm is set then the light is on. The light is not on. Therefore, the alarm is not set.

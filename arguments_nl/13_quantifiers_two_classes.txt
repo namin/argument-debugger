@@ -1,0 +1,1 @@
+All cats are carnivores. Some pets are cats. Therefore, some pets are carnivores.

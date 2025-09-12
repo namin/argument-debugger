@@ -1,0 +1,1 @@
+Only if encryption is enabled is the connection secure. The connection is secure. Therefore, encryption is enabled.
