@@ -23,17 +23,8 @@ import argparse, json, os, pathlib, re
 from typing import Optional, Iterable, Tuple, Dict, List
 from dataclasses import asdict, is_dataclass
 
-# Prefer LLM parser when requested
 from llm_argir import llm_to_argir
-
-# Optional: contentful CQ answers (falls back to generic if unavailable)
-try:
-    from llm_answers import generate_cq_answer  # optional module
-    _HAVE_LLM_ANS = True
-except Exception:
-    _HAVE_LLM_ANS = False
-    generate_cq_answer = None  # type: ignore
-
+from llm_answers import generate_cq_answer
 from nl_to_argir import nl_to_argir
 from compile_to_af import compile_to_af, AFGraph, neg_id
 from af_semantics import grounded_extension, status, attackers_of, unattacked
@@ -285,7 +276,7 @@ def _maybe_enrich_answer_labels_with_llm(plan, ir: ArgumentIR, tgt: str, args):
     Replace generic 'answer:...' node labels with one-sentence contentful answers,
     if llm_answers.generate_cq_answer is available. Fails silently otherwise.
     """
-    if not _HAVE_LLM_ANS or generate_cq_answer is None:
+    if not args.llm_answers:
         return
 
     # Try to recover the original argument text (for better answers)
@@ -475,6 +466,8 @@ def main():
                          "and a brief reason if no strict FOL was recognized.")
     ap.add_argument("--llm-parse", action="store_true",
                     help="Use the LLM (llm_argir.py) to produce ARG-IR from NL (bypasses nl_to_argir).")
+    ap.add_argument("--llm-answers", action="store_true",
+                    help="Use the LLM (llm_answers.py) to generate CQ answers (bypasses pedagogy.py).")
 
     # End-to-end and planning switches
     ap.add_argument("--e2e", action="store_true",
