@@ -6,6 +6,8 @@
 
 _an LLM+ASP system for analyzing and repairing arguments_
 
+See also [argir](https://github.com/namin/argir), a system for argumentation analysis using a unified multi-level IR, from argumentation semantics to first-order logic.
+
 ## Install
 
 ```bash
