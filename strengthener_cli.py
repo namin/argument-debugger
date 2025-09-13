@@ -10,9 +10,12 @@ New in this version:
                - Obligations per inference (with plain-English legend)
                - Why no strict FOL was recognized (if applicable)
                - Attackers with human-readable labels
+               - Explicit supports (frm -> to), if available
+
+  --show-extension   Print the grounded extension set (not just its size).
 
 End-to-end flow:
-  NL/Text/ARG-IR  → nl_to_argir  → (synth FOL) → (certify strict) → compile AF (+ waiver) → semantics → plan
+  NL/Text/ARG-IR  → (llm_to_argir | nl_to_argir) → (synth FOL) → (certify strict) → compile AF (+ waiver) → semantics → plan
 """
 
 from __future__ import annotations
@@ -20,7 +23,17 @@ import argparse, json, os, pathlib, re
 from typing import Optional, Iterable, Tuple, Dict, List
 from dataclasses import asdict, is_dataclass
 
+# Prefer LLM parser when requested
 from llm_argir import llm_to_argir
+
+# Optional: contentful CQ answers (falls back to generic if unavailable)
+try:
+    from llm_answers import generate_cq_answer  # optional module
+    _HAVE_LLM_ANS = True
+except Exception:
+    _HAVE_LLM_ANS = False
+    generate_cq_answer = None  # type: ignore
+
 from nl_to_argir import nl_to_argir
 from compile_to_af import compile_to_af, AFGraph, neg_id
 from af_semantics import grounded_extension, status, attackers_of, unattacked
@@ -61,10 +74,11 @@ def _obligation_legend() -> Dict[str, str]:
         "premises_present": "List all premises explicitly (avoid hidden assumptions).",
         "rule_applicable": "State the warrant/rule and show its preconditions are satisfied.",
         "term_consistency": "Use key terms consistently or define them to remove ambiguity.",
-        # practical/causal (appear in other examples)
+        # practical policy reasoning
         "means_lead_to_goal": "Explain how the proposed means actually achieves the stated goal (mechanism/evidence).",
         "side_effects_acceptable": "Address harms/downsides and justify that they are acceptable.",
         "better_alternative_absent": "Argue that there isn’t a clearly better alternative.",
+        # causal
         "mechanism": "Describe how the cause produces the effect (linking story).",
         "robustness": "Explain why the link holds across plausible variations.",
         "temporal_precedence": "Establish that the cause precedes the effect."
@@ -182,9 +196,8 @@ def _print_context(ir: ArgumentIR, g: AFGraph, target: str, show_legend: bool = 
     # Inferences
     print("\nInferences:")
     by_id = {p.id: p.text for p in ir.propositions}
-    strict_count = 0
     for inf in ir.inferences:
-        from_list = [f"{pid}: {by_id.get(pid, pid)}" for pid in inf.from_ids]
+        from_list = [f"{pid}: {by_id.get(pid, pid)}" for pid in getattr(inf, "from_ids", [])]
         to_txt = by_id.get(inf.to, inf.to)
         rule = getattr(inf, "rule", "defeasible")
         itype = getattr(inf, "type", None) or "-"
@@ -197,7 +210,6 @@ def _print_context(ir: ArgumentIR, g: AFGraph, target: str, show_legend: bool = 
         print(f"    rule/type/scheme: {rule} / {itype} / {scheme}   certified={certified}")
         fol = getattr(inf, "fol", None)
         if rule == "strict" and fol and getattr(fol, "conclusion", None):
-            strict_count += 1
             try:
                 print(f"    FOL premises: {list(fol.premises)}")
                 print(f"    FOL conclusion: {fol.conclusion}")
@@ -210,6 +222,12 @@ def _print_context(ir: ArgumentIR, g: AFGraph, target: str, show_legend: bool = 
             for n in ob_nodes:
                 key = n.split(":")[-1]
                 print(f"      - {n} : { _explain_obligation_key(key) }")
+
+    # Explicit supports present (if any) for transparency
+    if hasattr(g, "meta") and g.meta.get("supports"):
+        print("\nExplicit supports (frm -> to):")
+        for frm, to in g.meta["supports"]:
+            print(f"  - {frm} -> {to}")
 
     # If no strict for target's defender, say why (heuristic)
     ttxt = next((p.text for p in ir.propositions if p.id == target), "")
@@ -260,6 +278,62 @@ def _waive_certified_obligations_in_graph(ir: ArgumentIR, g: AFGraph) -> AFGraph
         g.labels.pop(nid, None)
     return g
 
+# ----------------- LLM answer enhancement (optional) -----------------
+
+def _maybe_enrich_answer_labels_with_llm(plan, ir: ArgumentIR, tgt: str, args):
+    """
+    Replace generic 'answer:...' node labels with one-sentence contentful answers,
+    if llm_answers.generate_cq_answer is available. Fails silently otherwise.
+    """
+    if not _HAVE_LLM_ANS or generate_cq_answer is None:
+        return
+
+    # Try to recover the original argument text (for better answers)
+    arg_text = None
+    if args.text:
+        arg_text = args.text
+    elif args.file and os.path.isfile(args.file):
+        try:
+            with open(args.file, "r", encoding="utf-8") as f:
+                arg_text = f.read()
+        except Exception:
+            arg_text = None
+    if arg_text is None:
+        # Fallback: join propositions
+        arg_text = "\n".join(p.text for p in ir.propositions)
+
+    # Find a representative inference into the target to sample premises
+    inf = next((i for i in ir.inferences if getattr(i, "to", None) == tgt), None)
+    prem_texts: List[str] = []
+    if inf:
+        for pid in (getattr(inf, "from_ids", []) or [])[:4]:
+            prem_texts.append(next((p.text for p in ir.propositions if p.id == pid), pid))
+    tgt_text = next((p.text for p in ir.propositions if p.id == tgt), tgt)
+
+    # Patch labels inline
+    for e in plan.edits:
+        if getattr(e, "kind", None) == "add_node" and getattr(e, "node_id", None) and getattr(e, "node_label", None):
+            if not e.node_label.startswith("answer:"):
+                continue
+            cq_key = None
+            nid = e.node_id
+            # Extract CQ key from node id like: ans__cq_i1_means_lead_to_goal_node
+            if nid.startswith("ans__cq_") and nid.endswith("_node"):
+                tail = nid[len("ans__cq_"):-len("_node")]
+                parts = tail.split("_", 2)
+                cq_key = parts[-1] if parts else None
+            if not cq_key and "CQ unmet:" in e.node_label:
+                cq_key = e.node_label.split("CQ unmet:", 1)[1].strip()
+            if not cq_key:
+                continue
+            try:
+                ans = generate_cq_answer(arg_text, cq_key, prem_texts, tgt_text)
+                if ans:
+                    e.node_label = f"answer:{ans}"
+            except Exception:
+                # Don’t block the run if LLM answering fails
+                pass
+
 # ----------------- main run path -----------------
 
 def _maybe_synthesize_fol(ir: ArgumentIR, enable: bool):
@@ -273,9 +347,9 @@ def _maybe_synthesize_fol(ir: ArgumentIR, enable: bool):
     # Show strict steps with FOL so you can see what cert will use:
     found = 0
     for inf in ir.inferences:
-        if inf.rule == "strict" and getattr(inf, "fol", None) and getattr(inf.fol, "conclusion", None):
+        if getattr(inf, "rule", None) == "strict" and getattr(inf, "fol", None) and getattr(inf.fol, "conclusion", None):
             found += 1
-            print("\n[debug] strict", inf.id, "scheme=", getattr(inf, "scheme", None))
+            print(f"\n[debug] strict {inf.id} scheme=", getattr(inf, "scheme", None))
             try:
                 print("  premises:", list(inf.fol.premises))
                 print("  conclusion:", inf.fol.conclusion)
@@ -310,16 +384,23 @@ def _run_one(ir: ArgumentIR, args, label: Optional[str] = None):
     print("\n=== Initial (Grounded) ===")
     print("Target id:", tgt)
     print("Target text:", next((p.text for p in ir.propositions if p.id == tgt), tgt))
-    print("Status:", status(g.nodes, g.attacks, tgt))
+    s0 = status(g.nodes, g.attacks, tgt)
+    print("Status:", s0)
     E0 = grounded_extension(g.nodes, g.attacks)
     print("Grounded extension size:", len(E0))
     _surface(g, tgt, show_labels=True)
 
-    # 5) E2E prefers optimal; fallback to greedy
-    if args.e2e:
+    if getattr(args, "show_extension", False):
+        print("Grounded extension:", sorted(E0))
+
+    # 5) Optimal planning (either explicit --optimal or as part of --e2e)
+    if args.e2e or args.optimal:
         try:
             plan = optimal_enforce(ir, g, tgt)
-            print("\n--- Optimal Plan (E2E) ---")
+            # Optionally enrich generic 'answer:' labels with LLM one-liners
+            _maybe_enrich_answer_labels_with_llm(plan, ir, tgt, args)
+
+            print("\n--- Optimal Plan ({} ) ---".format("E2E" if args.e2e else "optimal"))
             print("Cost:", plan.cost, "Before:", plan.before_status, "After:", plan.after_status)
             for e in plan.edits:
                 if e.kind == "add_node":
@@ -328,22 +409,27 @@ def _run_one(ir: ArgumentIR, args, label: Optional[str] = None):
                     print("  add attack", e.edge[0], "->", e.edge[1])
             for rline in plan.rationale:
                 print("  *", rline)
-            # Apply edits so explanation uses updated graph
+
+            # Apply edits so explanation uses the updated graph
             for e in plan.edits:
                 if e.kind == "add_node" and e.node_id:
                     g.nodes.add(e.node_id); g.labels[e.node_id] = e.node_label or e.node_id
                 if e.kind == "add_attack" and e.edge:
                     g.attacks.add(e.edge)
+
             for line in explain_acceptance_delta(plan.before_extension, plan.after_extension, g.attacks, g.labels, tgt):
                 print("   ", line)
             return
         except Exception as e:
-            print("\n[warn] Optimal enforcement failed (likely clingo missing):", e)
-            print("[warn] Falling back to greedy within-first (budget=max(3, --budget))")
-            args.within_first = True
-            args.budget = max(3, args.budget)
+            if args.e2e:
+                print("\n[warn] Optimal enforcement failed (likely clingo missing):", e)
+                print("[warn] Falling back to greedy within-first (budget=max(3, --budget))")
+                args.within_first = True
+                args.budget = max(3, args.budget)
+            else:
+                raise
 
-    # 6) Greedy path (if not e2e or after fallback)
+    # 6) Greedy path (if not optimal/e2e or after fallback)
     remaining = args.budget
     if args.within_first:
         plan_w = strengthen_within(ir, tgt, g, remaining)
@@ -358,6 +444,12 @@ def _run_one(ir: ArgumentIR, args, label: Optional[str] = None):
             print("  *", r)
         for line in explain_acceptance_delta(plan_w.before_extension, plan_w.after_extension, g.attacks, g.labels, tgt):
             print("   ", line)
+        # (Optionally) apply within edits before across, if you chain both
+        for e in plan_w.edits:
+            if e.kind == "add_node" and e.node_id:
+                g.nodes.add(e.node_id); g.labels[e.node_id] = e.node_label or e.node_id
+            if e.kind == "add_attack" and e.edge:
+                g.attacks.add(e.edge)
     else:
         plan_a = strengthen_across(ir, tgt, g, remaining)
         print("\n--- Across-graph Plan ---")
@@ -382,16 +474,17 @@ def main():
                     help="Print claims, inferences, obligations (with legend), "
                          "and a brief reason if no strict FOL was recognized.")
     ap.add_argument("--llm-parse", action="store_true",
-                help="Use the LLM (llm_argir.py) to produce ARG-IR from NL (bypasses nl_to_argir).")
+                    help="Use the LLM (llm_argir.py) to produce ARG-IR from NL (bypasses nl_to_argir).")
 
-    # End-to-end flow switches
+    # End-to-end and planning switches
     ap.add_argument("--e2e", action="store_true",
                     help="End-to-end: synth-fol + certify strict steps + optimal enforcement (fallback to greedy).")
     ap.add_argument("--synth-fol", action="store_true",
                     help="Synthesize FOL for strict steps from NL (marks rule='strict' on success).")
     ap.add_argument("--certify", action="store_true",
                     help="Attempt E/Lean certificates for strict steps (updates obligations).")
-    ap.add_argument("--optimal", action="store_true", help="Use clingo optimal enforcement.")
+    ap.add_argument("--optimal", action="store_true",
+                    help="Run clingo optimal enforcement (without the extra e2e steps).")
 
     # Greedy options
     ap.add_argument("--within-first", action="store_true",
@@ -400,6 +493,7 @@ def main():
 
     ap.add_argument("--target", type=str, help="Target claim id or substring.")
     ap.add_argument("--dump-ir", type=str, help="Path to write ARG-IR JSON (file or directory).")
+    ap.add_argument("--show-extension", action="store_true", help="Print the grounded extension set.")
     args = ap.parse_args()
 
     if not (args.text or args.file or args.argir or args.dir):
