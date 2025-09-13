@@ -20,6 +20,7 @@ import argparse, json, os, pathlib, re
 from typing import Optional, Iterable, Tuple, Dict, List
 from dataclasses import asdict, is_dataclass
 
+from llm_argir import llm_to_argir
 from nl_to_argir import nl_to_argir
 from compile_to_af import compile_to_af, AFGraph, neg_id
 from af_semantics import grounded_extension, status, attackers_of, unattacked
@@ -99,14 +100,16 @@ def _dump_ir(ir: ArgumentIR, dest: Optional[str], src_path: Optional[str] = None
         json.dump(_to_jsonable(ir), f, ensure_ascii=False, indent=2)
     print(f"[saved] ARG-IR → {out}")
 
-def _load_ir_from_text_or_file(text: Optional[str], file_path: Optional[str]) -> Tuple[ArgumentIR, Optional[str]]:
+def _load_ir_from_text_or_file(text: Optional[str], file_path: Optional[str], llm_parse: bool = True):
     if file_path:
         with open(file_path, "r", encoding="utf-8") as f:
             text = f.read()
-        ir = nl_to_argir(text)
-        return ir, file_path
     assert text is not None
-    return nl_to_argir(text), None
+    if llm_parse:
+        ir = llm_to_argir(text)
+    else:
+        ir = nl_to_argir(text)
+    return ir, file_path
 
 def _load_ir_from_argir(argir_path: str) -> Tuple[ArgumentIR, Optional[str]]:
     with open(argir_path, "r", encoding="utf-8") as f:
@@ -375,10 +378,11 @@ def main():
     ap.add_argument("--dir", type=str, help="Directory of inputs (.txt/.md for NL, .json for ARG-IR)")
     ap.add_argument("--auto", action="store_true", help="Placeholder flag (compatibility)")
 
-    # New: context flag
     ap.add_argument("--context", action="store_true",
                     help="Print claims, inferences, obligations (with legend), "
                          "and a brief reason if no strict FOL was recognized.")
+    ap.add_argument("--llm-parse", action="store_true",
+                help="Use the LLM (llm_argir.py) to produce ARG-IR from NL (bypasses nl_to_argir).")
 
     # End-to-end flow switches
     ap.add_argument("--e2e", action="store_true",
@@ -405,9 +409,9 @@ def main():
         if kind == "argir":
             ir, label = _load_ir_from_argir(payload)
         elif kind == "nlfile":
-            ir, label = _load_ir_from_text_or_file(None, payload)
+            ir, label = _load_ir_from_text_or_file(None, payload, llm_parse=args.llm_parse)
         else:
-            ir, label = _load_ir_from_text_or_file(payload, None)
+            ir, label = _load_ir_from_text_or_file(payload, None, llm_parse=args.llm_parse)
         if args.dump_ir:
             _dump_ir(ir, args.dump_ir, src_path=label)
         _run_one(ir, args, label=label)
